@@ -1,0 +1,122 @@
+[gd_scene load_steps=17 format=3 uid="uid://character_root_v1"]
+
+[ext_resource type="Texture2D" path="res://assets/generated/steve_face_2_frame_0.png" id="1_face"]
+
+[sub_resource type="StandardMaterial3D" id="mat_skin"]
+albedo_color = Color(0.95, 0.78, 0.6, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="mat_shirt"]
+albedo_color = Color(0.18, 0.62, 0.72, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="mat_pants"]
+albedo_color = Color(0.18, 0.22, 0.48, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="mat_hair"]
+albedo_color = Color(0.22, 0.13, 0.08, 1)
+roughness = 0.95
+
+[sub_resource type="StandardMaterial3D" id="mat_boots"]
+albedo_color = Color(0.12, 0.08, 0.05, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="mat_face"]
+albedo_texture = ExtResource("1_face")
+texture_filter = 0
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="mesh_head"]
+material = SubResource("mat_skin")
+size = Vector3(0.4, 0.4, 0.4)
+
+[sub_resource type="BoxMesh" id="mesh_hair"]
+material = SubResource("mat_hair")
+size = Vector3(0.42, 0.1, 0.42)
+
+[sub_resource type="QuadMesh" id="mesh_face"]
+material = SubResource("mat_face")
+size = Vector2(0.4, 0.4)
+
+[sub_resource type="BoxMesh" id="mesh_torso"]
+material = SubResource("mat_shirt")
+size = Vector3(0.5, 0.6, 0.25)
+
+[sub_resource type="BoxMesh" id="mesh_upper_arm"]
+material = SubResource("mat_shirt")
+size = Vector3(0.2, 0.45, 0.2)
+
+[sub_resource type="BoxMesh" id="mesh_hand"]
+material = SubResource("mat_skin")
+size = Vector3(0.2, 0.15, 0.2)
+
+[sub_resource type="BoxMesh" id="mesh_upper_leg"]
+material = SubResource("mat_pants")
+size = Vector3(0.2, 0.62, 0.2)
+
+[sub_resource type="BoxMesh" id="mesh_boot"]
+material = SubResource("mat_boots")
+size = Vector3(0.22, 0.15, 0.22)
+
+[node name="Character" type="Node3D"]
+
+[node name="Head" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.48, 0)
+mesh = SubResource("mesh_head")
+
+[node name="Hair" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.68, 0)
+mesh = SubResource("mesh_hair")
+
+[node name="Face" type="MeshInstance3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 1.48, -0.205)
+mesh = SubResource("mesh_face")
+
+[node name="Torso" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
+mesh = SubResource("mesh_torso")
+
+[node name="LeftShoulder" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.34, 1.3, 0)
+
+[node name="LeftUpperArm" type="MeshInstance3D" parent="LeftShoulder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.23, 0)
+mesh = SubResource("mesh_upper_arm")
+
+[node name="LeftHand" type="MeshInstance3D" parent="LeftShoulder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.53, 0)
+mesh = SubResource("mesh_hand")
+
+[node name="RightShoulder" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.34, 1.3, 0)
+
+[node name="RightUpperArm" type="MeshInstance3D" parent="RightShoulder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.23, 0)
+mesh = SubResource("mesh_upper_arm")
+
+[node name="RightHand" type="MeshInstance3D" parent="RightShoulder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.53, 0)
+mesh = SubResource("mesh_hand")
+
+[node name="LeftHip" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.11, 0.75, 0)
+
+[node name="LeftLeg" type="MeshInstance3D" parent="LeftHip"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
+mesh = SubResource("mesh_upper_leg")
+
+[node name="LeftFoot" type="MeshInstance3D" parent="LeftHip"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.675, 0)
+mesh = SubResource("mesh_boot")
+
+[node name="RightHip" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.11, 0.75, 0)
+
+[node name="RightLeg" type="MeshInstance3D" parent="RightHip"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
+mesh = SubResource("mesh_upper_leg")
+
+[node name="RightFoot" type="MeshInstance3D" parent="RightHip"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.675, 0)
+mesh = SubResource("mesh_boot")

@@ -1,0 +1,97 @@
+[gd_scene load_steps=9 format=3 uid="uid://block_highlight_v1"]
+
+[ext_resource type="Texture2D" path="res://assets/generated/cracks_frame_0.png" id="1_cracks"]
+[ext_resource type="Shader" path="res://shaders/cracks.gdshader" id="2_cracks_shader"]
+
+[sub_resource type="StandardMaterial3D" id="mat_outline"]
+shading_mode = 0
+albedo_color = Color(0, 0, 0, 1)
+roughness = 1.0
+
+[sub_resource type="BoxMesh" id="edge_x"]
+material = SubResource("mat_outline")
+size = Vector3(1.02, 0.02, 0.02)
+
+[sub_resource type="BoxMesh" id="edge_y"]
+material = SubResource("mat_outline")
+size = Vector3(0.02, 1.02, 0.02)
+
+[sub_resource type="BoxMesh" id="edge_z"]
+material = SubResource("mat_outline")
+size = Vector3(0.02, 0.02, 1.02)
+
+[sub_resource type="ShaderMaterial" id="mat_cracks"]
+shader = ExtResource("2_cracks_shader")
+shader_parameter/cracks_tex = ExtResource("1_cracks")
+shader_parameter/progress = 0.0
+
+[sub_resource type="BoxMesh" id="mesh_cracks"]
+material = SubResource("mat_cracks")
+size = Vector3(1.005, 1.005, 1.005)
+
+[node name="BlockHighlight" type="Node3D"]
+
+[node name="CrackOverlay" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+visible = false
+mesh = SubResource("mesh_cracks")
+
+[node name="EX_BotBack" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, -0.5)
+cast_shadow = 0
+mesh = SubResource("edge_x")
+
+[node name="EX_BotFront" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0.5)
+cast_shadow = 0
+mesh = SubResource("edge_x")
+
+[node name="EX_TopBack" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -0.5)
+cast_shadow = 0
+mesh = SubResource("edge_x")
+
+[node name="EX_TopFront" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0.5)
+cast_shadow = 0
+mesh = SubResource("edge_x")
+
+[node name="EY_BackLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 0, -0.5)
+cast_shadow = 0
+mesh = SubResource("edge_y")
+
+[node name="EY_BackRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, -0.5)
+cast_shadow = 0
+mesh = SubResource("edge_y")
+
+[node name="EY_FrontLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 0, 0.5)
+cast_shadow = 0
+mesh = SubResource("edge_y")
+
+[node name="EY_FrontRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0, 0.5)
+cast_shadow = 0
+mesh = SubResource("edge_y")
+
+[node name="EZ_BotLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, -0.5, 0)
+cast_shadow = 0
+mesh = SubResource("edge_z")
+
+[node name="EZ_BotRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, -0.5, 0)
+cast_shadow = 0
+mesh = SubResource("edge_z")
+
+[node name="EZ_TopLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 0.5, 0)
+cast_shadow = 0
+mesh = SubResource("edge_z")
+
+[node name="EZ_TopRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0.5, 0)
+cast_shadow = 0
+mesh = SubResource("edge_z")
