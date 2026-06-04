@@ -6,7 +6,7 @@ extends CharacterBody3D
 
 const WALK_SPEED: float = 4.5
 const SPRINT_SPEED: float = 7.5
-const JUMP_VELOCITY: float = 8.0
+const JUMP_VELOCITY: float = 7.75
 const GROUND_ACCEL: float = 12.0
 const AIR_ACCEL: float = 3.0
 const MOUSE_SENSITIVITY: float = 0.0025
@@ -30,16 +30,30 @@ const CROUCH_LERP_RATE: float = 12.0
 const BLOCK_MINE_TIME: Dictionary = {
     "dirt": 3.0,
     "grass": 3.0,
-    "cobble": 7.0,
+    "cobble": 2.5,
     "wood": 4.5,
     "leaves": 0.5,
     "sand": 1.5,
 }
 
-const FP_ARM_BOB_FREQ: float = 6.5
-const FP_ARM_BOB_AMP_DOWN: float = 0.08
-const FP_ARM_BOB_AMP_FORWARD: float = 0.05
-const FP_ARM_BOB_RECOVER_RATE: float = 10.0
+const FP_ARM_BOB_FREQ: float = 8.0
+const FP_ARM_BOB_AMP_UP: float = 0.04
+const FP_ARM_BOB_AMP_FORWARD: float = 0.03
+# Positive pitch rotates the arm's forward tip UP, so each strike is a vertical
+# sweep around the wrist pivot — the rotation alone naturally swings the hand
+# up + slightly forward, the way Minecraft's swing arcs.
+const FP_ARM_BOB_PITCH_DEG: float = 42.0
+const FP_ARM_BOB_RECOVER_RATE: float = 14.0
+
+# A quick jab when the player left-clicks but isn't mining a block.
+# Mostly rotation — the hand sweeps UP in a short arc, not outward.
+const PUNCH_DURATION: float = 0.18
+const PUNCH_FORWARD: float = 0.04
+const PUNCH_UP: float = 0.06
+const PUNCH_PITCH_DEG: float = 60.0
+# How far the third-person right shoulder swings forward on a punch/mining strike.
+const TP_PUNCH_SHOULDER_DEG: float = 85.0
+const TP_MINING_SHOULDER_DEG: float = 55.0
 
 const CRACK_STAGE_PATHS: Array = [
     "res://assets/generated/crack_stage_0_frame_0.png",
@@ -87,6 +101,8 @@ var _mining_type: String = ""
 
 var _arm_bob_phase: float = 0.0
 var _fp_arm_rest: Vector3 = Vector3.ZERO
+var _fp_arm_rest_rot: Vector3 = Vector3.ZERO
+var _punch_time: float = 0.0
 
 var _crack_stages: Array[Texture2D] = []
 var _current_crack_stage: int = -1
@@ -114,6 +130,7 @@ func _ready() -> void:
     _on_selection_changed(0, "")  # ensure held-block starts hidden
     if fp_arm != null:
         _fp_arm_rest = fp_arm.position
+        _fp_arm_rest_rot = fp_arm.rotation
     for path in CRACK_STAGE_PATHS:
         if ResourceLoader.exists(path):
             var tex: Texture2D = load(path)
@@ -159,10 +176,16 @@ func _unhandled_input(event: InputEvent) -> void:
     elif event is InputEventKey and event.pressed and event.keycode == KEY_R:
         _toggle_perspective()
     elif event is InputEventMouseButton and event.pressed:
+        var inv_open: bool = _hud != null and _hud.has_method("is_inventory_open") and _hud.is_inventory_open()
         if Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
-            Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+            # Don't re-capture while the inventory is open — let the HUD own clicks.
+            if not inv_open:
+                Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
         elif event.button_index == MOUSE_BUTTON_RIGHT:
             _try_place_block()
+        elif event.button_index == MOUSE_BUTTON_LEFT:
+            # Every left-click throws a punch; mining bob overrides it while held on a block.
+            _punch_time = PUNCH_DURATION
 
 
 func _physics_process(delta: float) -> void:
@@ -260,18 +283,37 @@ func _physics_process(delta: float) -> void:
 func _update_arm_bob(delta: float) -> void:
     if fp_arm == null:
         return
+    # Always count down the punch timer so it expires even when overridden by mining.
+    if _punch_time > 0.0:
+        _punch_time = max(0.0, _punch_time - delta)
+
     if _mining_progress > 0.0:
         _arm_bob_phase += delta * FP_ARM_BOB_FREQ
-        # abs(sin) dips downward twice per sin cycle — feels like a rhythmic strike.
+        # abs(sin) peaks twice per sin cycle — each peak is a rhythmic strike that
+        # rises forward+up rather than dipping below rest.
         var swing: float = absf(sin(_arm_bob_phase))
-        var dip: float = swing * FP_ARM_BOB_AMP_DOWN
+        var rise: float = swing * FP_ARM_BOB_AMP_UP
         var forward: float = swing * FP_ARM_BOB_AMP_FORWARD
-        fp_arm.position = _fp_arm_rest + Vector3(0.0, -dip, -forward)
+        fp_arm.position = _fp_arm_rest + Vector3(0.0, rise, -forward)
+        # Positive X rotation rotates the forward tip UP, so the hand stays
+        # aimed straight ahead rather than pointing at the floor.
+        fp_arm.rotation = _fp_arm_rest_rot + Vector3(
+            swing * deg_to_rad(FP_ARM_BOB_PITCH_DEG), 0.0, 0.0
+        )
+    elif _punch_time > 0.0:
+        # 0 → 1 → 0 arc across the punch duration.
+        var t: float = 1.0 - (_punch_time / PUNCH_DURATION)
+        var arc: float = sin(t * PI)
+        fp_arm.position = _fp_arm_rest + Vector3(0.0, arc * PUNCH_UP, -arc * PUNCH_FORWARD)
+        fp_arm.rotation = _fp_arm_rest_rot + Vector3(
+            arc * deg_to_rad(PUNCH_PITCH_DEG), 0.0, 0.0
+        )
+        _arm_bob_phase = 0.0
     else:
         _arm_bob_phase = 0.0
-        fp_arm.position = fp_arm.position.lerp(
-            _fp_arm_rest, clamp(FP_ARM_BOB_RECOVER_RATE * delta, 0.0, 1.0)
-        )
+        var blend: float = clamp(FP_ARM_BOB_RECOVER_RATE * delta, 0.0, 1.0)
+        fp_arm.position = fp_arm.position.lerp(_fp_arm_rest, blend)
+        fp_arm.rotation = fp_arm.rotation.lerp(_fp_arm_rest_rot, blend)
 
 
 func _has_floor_at(pos: Vector3) -> bool:
@@ -302,17 +344,22 @@ func _update_walk_animation(delta: float) -> void:
     left_shoulder.rotation.x = -swing * ARM_SWING_RATIO
     right_shoulder.rotation.x = swing * ARM_SWING_RATIO
 
+    # In third-person, also play the punch / mining swing on the real right arm
+    # so the click is visible in R mode.
+    if not _first_person:
+        if _mining_progress > 0.0:
+            var ms: float = absf(sin(_arm_bob_phase))
+            right_shoulder.rotation.x = ms * deg_to_rad(TP_MINING_SHOULDER_DEG)
+        elif _punch_time > 0.0:
+            var pt: float = 1.0 - (_punch_time / PUNCH_DURATION)
+            var parc: float = sin(pt * PI)
+            right_shoulder.rotation.x = parc * deg_to_rad(TP_PUNCH_SHOULDER_DEG)
+
 
 func _update_block_highlight() -> void:
     if _block_highlight == null:
         return
-    var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
-    var origin: Vector3 = camera.global_position
-    var dir: Vector3 = -camera.global_transform.basis.z
-    var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-        origin, origin + dir * MAX_REACH, 0xFFFFFFFF, [get_rid()]
-    )
-    var hit: Dictionary = space.intersect_ray(params)
+    var hit: Dictionary = _camera_ray_hit()
     if hit.is_empty():
         _block_highlight.visible = false
         return
@@ -327,10 +374,23 @@ func _camera_ray_hit() -> Dictionary:
     var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
     var origin: Vector3 = camera.global_position
     var dir: Vector3 = -camera.global_transform.basis.z
+    # Reach is measured from the player's eye (camera pivot), not from the camera
+    # itself. In third-person the camera is offset behind the player, so extend
+    # the ray by that offset and then reject hits that are farther than MAX_REACH
+    # from the player. This keeps the crosshair aiming correctly in R mode while
+    # the player's "arm length" stays consistent.
+    var eye_pos: Vector3 = camera_pivot.global_position
+    var cam_offset: float = origin.distance_to(eye_pos)
+    var ray_length: float = MAX_REACH + cam_offset
     var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-        origin, origin + dir * MAX_REACH, 0xFFFFFFFF, [get_rid()]
+        origin, origin + dir * ray_length, 0xFFFFFFFF, [get_rid()]
     )
-    return space.intersect_ray(params)
+    var hit: Dictionary = space.intersect_ray(params)
+    if hit.is_empty():
+        return hit
+    if hit.position.distance_to(eye_pos) > MAX_REACH:
+        return {}
+    return hit
 
 
 func _update_mining(delta: float) -> void:

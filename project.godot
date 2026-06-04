@@ -32,4 +32,4 @@ move_forward="{\"deadzone\": 0.5, \"events\": [{\"__gd_type\": \"InputEventKey\"
 
 [physics]
 
-3d/default_gravity=19.6
+3d/default_gravity=25.0
