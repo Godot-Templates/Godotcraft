@@ -8,7 +8,7 @@ extends Node
 ## - join_room(code) connects to an existing room by its 4-digit code.
 ## - Host-authority spawner pattern (host = lowest real peer id, per Ziva docs)
 ##   spawns a small RemotePlayer node per peer; each peer drives its own avatar
-##   while a MultiplayerSynchronizer broadcasts position/rotation to others.
+##   while compact RPC state packets keep remote avatars smooth.
 
 signal room_created(code: String)
 signal room_joined(code: String)
@@ -80,6 +80,18 @@ func get_room_code() -> String:
 
 func get_last_connection_debug() -> String:
     return _last_connection_debug
+
+
+func sync_block_added(pos: Vector3i, type: String) -> void:
+    if not is_active():
+        return
+    _rpc_apply_block_edit.rpc(pos.x, pos.y, pos.z, type, true)
+
+
+func sync_block_removed(pos: Vector3i) -> void:
+    if not is_active():
+        return
+    _rpc_apply_block_edit.rpc(pos.x, pos.y, pos.z, "", false)
 
 
 func create_room() -> String:
@@ -317,6 +329,7 @@ func _refresh_host(include_self_floor: bool = true) -> void:
     # new one when we have a candidate.
     if cands.size() > 0:
         _host = int(cands[0])
+        set_multiplayer_authority(_host)
         _spawner.set_multiplayer_authority(_host)
 
 
@@ -338,6 +351,23 @@ func _host_spawn_all() -> void:
     _host_spawn(multiplayer.get_unique_id())
     for id in _real_peers():
         _host_spawn(id)
+
+
+func _world() -> Node:
+    var scene: Node = get_tree().current_scene
+    if scene == null:
+        return null
+    return scene.get_node_or_null("World")
+
+
+func _send_world_snapshot_to(peer_id: int) -> void:
+    if not _i_am_host() or peer_id <= 1:
+        return
+    var world: Node = _world()
+    if world == null or not world.has_method("get_block_snapshot"):
+        return
+    var snapshot: Array = world.get_block_snapshot()
+    _rpc_apply_world_snapshot.rpc_id(peer_id, snapshot)
 
 
 func _clear_avatars() -> void:
@@ -363,6 +393,8 @@ func _on_connected_to_server() -> void:
     if me == 2:
         room_created.emit(_current_code)
         _host_spawn_all()
+    elif _host > 0:
+        _rpc_request_world_snapshot.rpc_id(_host)
 
 
 func _on_peer_connected(id: int) -> void:
@@ -370,6 +402,8 @@ func _on_peer_connected(id: int) -> void:
         return
     _refresh_host()
     _host_spawn_all()
+    if _i_am_host():
+        _send_world_snapshot_to(id)
 
 
 func _on_peer_disconnected(id: int) -> void:
@@ -437,22 +471,30 @@ func _spawn_remote_player(data: Variant) -> Node:
     var avatar: Node3D = Node3D.new()
     avatar.name = "player_%d" % id
     avatar.set_script(REMOTE_PLAYER_SCRIPT)
-
-    var sync: MultiplayerSynchronizer = MultiplayerSynchronizer.new()
-    sync.name = "Sync"
-    sync.replication_interval = 0.0  # push every network frame, lowest observer lag
-    var cfg: SceneReplicationConfig = SceneReplicationConfig.new()
-    cfg.add_property(NodePath(".:position"))
-    cfg.property_set_spawn(NodePath(".:position"), true)
-    cfg.property_set_replication_mode(
-        NodePath(".:position"), SceneReplicationConfig.REPLICATION_MODE_ALWAYS
-    )
-    cfg.add_property(NodePath(".:rotation"))
-    cfg.property_set_spawn(NodePath(".:rotation"), true)
-    cfg.property_set_replication_mode(
-        NodePath(".:rotation"), SceneReplicationConfig.REPLICATION_MODE_ALWAYS
-    )
-    sync.replication_config = cfg
-    sync.root_path = NodePath("..")
-    avatar.add_child(sync)
     return avatar
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_apply_block_edit(x: int, y: int, z: int, type: String, add: bool) -> void:
+    var world: Node = _world()
+    if world == null or not world.has_method("apply_block_edit"):
+        return
+    world.apply_block_edit(Vector3i(x, y, z), type, add)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_world_snapshot() -> void:
+    if not _i_am_host():
+        return
+    var requester: int = multiplayer.get_remote_sender_id()
+    _send_world_snapshot_to(requester)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_apply_world_snapshot(snapshot: Array) -> void:
+    if multiplayer.get_remote_sender_id() != _host:
+        return
+    var world: Node = _world()
+    if world == null or not world.has_method("apply_block_snapshot"):
+        return
+    world.apply_block_snapshot(snapshot)

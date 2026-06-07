@@ -248,6 +248,52 @@ func get_spawn_height() -> int:
     return _spawn_height
 
 
+func get_block_snapshot() -> Array[Dictionary]:
+    var snapshot: Array[Dictionary] = []
+    snapshot.resize(_block_types.size())
+    var i: int = 0
+    for pos_variant in _block_types.keys():
+        var pos: Vector3i = pos_variant
+        snapshot[i] = {
+            "x": pos.x,
+            "y": pos.y,
+            "z": pos.z,
+            "type": String(_block_types[pos]),
+        }
+        i += 1
+    return snapshot
+
+
+func apply_block_snapshot(snapshot: Array) -> void:
+    _clear_all_blocks()
+    for item_variant in snapshot:
+        if typeof(item_variant) != TYPE_DICTIONARY:
+            continue
+        var item: Dictionary = item_variant
+        var pos: Vector3i = Vector3i(
+            int(item.get("x", 0)),
+            int(item.get("y", 0)),
+            int(item.get("z", 0))
+        )
+        var type: String = String(item.get("type", ""))
+        if not type.is_empty():
+            add_block(pos, type)
+
+
+func apply_block_edit(pos: Vector3i, type: String, add: bool) -> void:
+    if add:
+        add_block(pos, type)
+    else:
+        remove_block(pos)
+
+
+func _clear_all_blocks() -> void:
+    var positions: Array = _block_types.keys()
+    for pos_variant in positions:
+        var pos: Vector3i = pos_variant
+        remove_block(pos)
+
+
 func _generate_chunk() -> void:
     var noise: FastNoiseLite = FastNoiseLite.new()
     noise.seed = SEED_VAL

@@ -95,6 +95,7 @@ var _crouching: bool = false
 
 var _world: Node
 var _hud: Node
+var _multiplayer_mgr: Node
 var _mining_target_pos: Vector3i = Vector3i(2147483647, 2147483647, 2147483647)
 var _mining_progress: float = 0.0
 var _mining_type: String = ""
@@ -120,6 +121,9 @@ func _ready() -> void:
     if _world != null and _world.has_method("get_spawn_height"):
         var h: int = _world.get_spawn_height()
         global_position = Vector3(0.0, float(h) + 2.0, 0.0)
+    var managers: Array = get_tree().get_nodes_in_group("multiplayer_manager")
+    if not managers.is_empty():
+        _multiplayer_mgr = managers[0]
     var huds: Array = get_tree().get_nodes_in_group("hud")
     if not huds.is_empty():
         _hud = huds[0]
@@ -448,6 +452,7 @@ func _update_mining(delta: float) -> void:
     if _mining_progress >= required:
         var removed: String = _world.remove_block(block_pos)
         if removed != "":
+            _sync_block_removed(block_pos)
             _spawn_item_drop(Vector3(block_pos), removed)
         _stop_mining()
         return
@@ -505,8 +510,23 @@ func _try_place_block() -> void:
         return
     if _block_intersects_player(new_pos):
         return
-    _world.add_block(new_pos, type)
-    _hud.consume_selected(1)
+    if _world.add_block(new_pos, type):
+        _sync_block_added(new_pos, type)
+        _hud.consume_selected(1)
+
+
+func _sync_block_added(pos: Vector3i, type: String) -> void:
+    if _multiplayer_mgr == null:
+        return
+    if _multiplayer_mgr.has_method("sync_block_added"):
+        _multiplayer_mgr.sync_block_added(pos, type)
+
+
+func _sync_block_removed(pos: Vector3i) -> void:
+    if _multiplayer_mgr == null:
+        return
+    if _multiplayer_mgr.has_method("sync_block_removed"):
+        _multiplayer_mgr.sync_block_removed(pos)
 
 
 func _block_intersects_player(block_pos: Vector3i) -> bool:

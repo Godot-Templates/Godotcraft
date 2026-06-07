@@ -18,6 +18,11 @@ config/name="ziva-agent-v2"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 
+[autoload]
+
+MpManager="*res://scripts/multiplayer_manager.gd"
+GameSettingsMenu="*res://scripts/settings_menu.gd"
+
 [display]
 
 window/dpi/allow_hidpi=false
@@ -33,3 +38,9 @@ move_forward="{\"deadzone\": 0.5, \"events\": [{\"__gd_type\": \"InputEventKey\"
 [physics]
 
 3d/default_gravity=25.0
+
+[ziva]
+
+multiplayer/user_id="ef5qPz5y3EoAfw0X1wTMQ1683c4S2nyU"
+multiplayer/relay_url="wss://ziva-multiplayer-staging.ziva-multiplayer.workers.dev"
+multiplayer/game_id="25667508864fe002fdd00625721cc00"
