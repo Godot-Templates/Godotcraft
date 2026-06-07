@@ -8,7 +8,7 @@
 [ext_resource type="PackedScene" path="res://scenes/character.tscn" id="6_character"]
 [ext_resource type="PackedScene" path="res://scenes/fp_arm.tscn" id="7_fp_arm"]
 [ext_resource type="PackedScene" path="res://scenes/block_highlight.tscn" id="8_highlight"]
-[ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="9_hud"]
+[ext_resource type="PackedScene" uid="uid://dhh4xubsndg1q" path="res://scenes/hud.tscn" id="9_hud"]
 [ext_resource type="Texture2D" uid="uid://3bygmtfoqf6a" path="res://assets/generated/grass_top_frame_0.png" id="10_grass"]
 [ext_resource type="Texture2D" uid="uid://c68jqejpadxsx" path="res://assets/generated/wood_frame_0.png" id="11_wood"]
 [ext_resource type="Texture2D" uid="uid://co3fxxf1ehitk" path="res://assets/generated/leaves_frame_0.png" id="12_leaves"]

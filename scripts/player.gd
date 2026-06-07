@@ -143,6 +143,28 @@ func _toggle_perspective() -> void:
     _apply_perspective()
 
 
+func _open_settings_menu() -> void:
+    var menus: Array = get_tree().get_nodes_in_group("settings_menu")
+    if menus.is_empty():
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+        return
+    var menu: Node = menus[0]
+    if menu.has_method("is_open") and menu.is_open():
+        return
+    if menu.has_method("open"):
+        menu.open()
+
+
+func _is_settings_menu_open() -> bool:
+    var menus: Array = get_tree().get_nodes_in_group("settings_menu")
+    if menus.is_empty():
+        return false
+    var menu: Node = menus[0]
+    if menu.has_method("is_open"):
+        return menu.is_open()
+    return false
+
+
 func _apply_perspective() -> void:
     camera.position = FP_CAMERA_OFFSET if _first_person else TP_CAMERA_OFFSET
     fp_arm.visible = _first_person
@@ -172,14 +194,16 @@ func _unhandled_input(event: InputEvent) -> void:
         rotation.y = _yaw
         camera_pivot.rotation.x = _pitch
     elif event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
-        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+        _open_settings_menu()
     elif event is InputEventKey and event.pressed and event.keycode == KEY_R:
         _toggle_perspective()
     elif event is InputEventMouseButton and event.pressed:
         var inv_open: bool = _hud != null and _hud.has_method("is_inventory_open") and _hud.is_inventory_open()
+        var settings_open: bool = _is_settings_menu_open()
         if Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
-            # Don't re-capture while the inventory is open — let the HUD own clicks.
-            if not inv_open:
+            # Don't re-capture while the inventory or settings menu owns the
+            # mouse — those overlays need their own clicks.
+            if not inv_open and not settings_open:
                 Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
         elif event.button_index == MOUSE_BUTTON_RIGHT:
             _try_place_block()

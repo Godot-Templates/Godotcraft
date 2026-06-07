@@ -527,6 +527,14 @@ func _texture_for(type: String) -> Texture2D:
 # ------------------------- input -------------------------
 
 func _input(event: InputEvent) -> void:
+    # If a Control owns keyboard focus (e.g. the settings-menu join-code
+    # LineEdit), let it consume its own keystrokes — don't hijack 1-9 here.
+    if get_viewport().gui_get_focus_owner() != null:
+        return
+    # Also stand down while the settings menu is up so its own input handler
+    # owns the keystrokes.
+    if _is_settings_menu_open():
+        return
     if event is InputEventKey and event.pressed and not event.echo:
         var k: int = event.keycode
         if k == KEY_E:
@@ -554,6 +562,16 @@ func _input(event: InputEvent) -> void:
             _selected_slot = (_selected_slot + 1) % HOTBAR_SIZE
             _update_selection()
             get_viewport().set_input_as_handled()
+
+
+func _is_settings_menu_open() -> bool:
+    var menus: Array = get_tree().get_nodes_in_group("settings_menu")
+    if menus.is_empty():
+        return false
+    var menu: Node = menus[0]
+    if menu.has_method("is_open"):
+        return menu.is_open()
+    return false
 
 
 func _toggle_inventory() -> void:
