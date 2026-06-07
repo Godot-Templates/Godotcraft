@@ -26,6 +26,14 @@ const SPRINT_DOUBLE_TAP_WINDOW: float = 0.3
 const STAND_PIVOT_Y: float = 1.6
 const CROUCH_PIVOT_Y: float = 1.1
 const CROUCH_LERP_RATE: float = 12.0
+const CROUCH_POSE_LERP_RATE: float = 14.0
+const CROUCH_BODY_DROP: float = 0.28
+const CROUCH_TORSO_LEAN_DEG: float = 8.0
+const CROUCH_HEAD_FORWARD: float = 0.08
+const CROUCH_HIP_FORWARD: float = 0.12
+const CROUCH_HIP_DROP: float = 0.14
+const CROUCH_KNEE_BEND_DEG: float = 28.0
+const CROUCH_ARM_FORWARD_DEG: float = 12.0
 
 const BLOCK_MINE_TIME: Dictionary = {
     "dirt": 3.0,
@@ -76,6 +84,10 @@ const CRACK_STAGE_PATHS: Array = [
 @onready var fp_arm: Node3D = $CameraPivot/Camera3D/FPArm
 @onready var held_block: MeshInstance3D = $CameraPivot/Camera3D/FPArm/HeldBlock
 @onready var character: Node3D = $Character
+@onready var head: MeshInstance3D = $Character/Head
+@onready var hair: MeshInstance3D = $Character/Hair
+@onready var face: MeshInstance3D = $Character/Face
+@onready var torso: MeshInstance3D = $Character/Torso
 @onready var left_shoulder: Node3D = $Character/LeftShoulder
 @onready var right_shoulder: Node3D = $Character/RightShoulder
 @onready var left_hip: Node3D = $Character/LeftHip
@@ -92,6 +104,7 @@ var _w_was_pressed: bool = false
 var _w_last_release_time: float = -10.0
 var _sprint_active: bool = false
 var _crouching: bool = false
+var _crouch_pose_blend: float = 0.0
 
 var _world: Node
 var _hud: Node
@@ -107,6 +120,17 @@ var _punch_time: float = 0.0
 
 var _crack_stages: Array[Texture2D] = []
 var _current_crack_stage: int = -1
+
+var _character_rest_position: Vector3 = Vector3.ZERO
+var _head_rest_position: Vector3 = Vector3.ZERO
+var _hair_rest_position: Vector3 = Vector3.ZERO
+var _face_rest_position: Vector3 = Vector3.ZERO
+var _torso_rest_rotation: Vector3 = Vector3.ZERO
+var _head_rest_rotation: Vector3 = Vector3.ZERO
+var _hair_rest_rotation: Vector3 = Vector3.ZERO
+var _face_rest_rotation: Vector3 = Vector3.ZERO
+var _left_hip_rest_position: Vector3 = Vector3.ZERO
+var _right_hip_rest_position: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
@@ -135,11 +159,25 @@ func _ready() -> void:
     if fp_arm != null:
         _fp_arm_rest = fp_arm.position
         _fp_arm_rest_rot = fp_arm.rotation
+    _cache_character_rest_pose()
     for path in CRACK_STAGE_PATHS:
         if ResourceLoader.exists(path):
             var tex: Texture2D = load(path)
             if tex != null:
                 _crack_stages.append(tex)
+
+
+func _cache_character_rest_pose() -> void:
+    _character_rest_position = character.position
+    _head_rest_position = head.position
+    _hair_rest_position = hair.position
+    _face_rest_position = face.position
+    _torso_rest_rotation = torso.rotation
+    _head_rest_rotation = head.rotation
+    _hair_rest_rotation = hair.rotation
+    _face_rest_rotation = face.rotation
+    _left_hip_rest_position = left_hip.position
+    _right_hip_rest_position = right_hip.position
 
 
 func _toggle_perspective() -> void:
@@ -167,6 +205,10 @@ func _is_settings_menu_open() -> bool:
     if menu.has_method("is_open"):
         return menu.is_open()
     return false
+
+
+func is_crouching() -> bool:
+    return _crouching
 
 
 func _apply_perspective() -> void:
@@ -372,16 +414,47 @@ func _update_walk_animation(delta: float) -> void:
     left_shoulder.rotation.x = -swing * ARM_SWING_RATIO
     right_shoulder.rotation.x = swing * ARM_SWING_RATIO
 
+    _apply_crouch_pose(delta, swing)
+
     # In third-person, also play the punch / mining swing on the real right arm
     # so the click is visible in R mode.
     if not _first_person:
         if _mining_progress > 0.0:
             var ms: float = absf(sin(_arm_bob_phase))
-            right_shoulder.rotation.x = ms * deg_to_rad(TP_MINING_SHOULDER_DEG)
+            right_shoulder.rotation.x += ms * deg_to_rad(TP_MINING_SHOULDER_DEG)
         elif _punch_time > 0.0:
             var pt: float = 1.0 - (_punch_time / PUNCH_DURATION)
             var parc: float = sin(pt * PI)
-            right_shoulder.rotation.x = parc * deg_to_rad(TP_PUNCH_SHOULDER_DEG)
+            right_shoulder.rotation.x += parc * deg_to_rad(TP_PUNCH_SHOULDER_DEG)
+
+
+func _apply_crouch_pose(delta: float, walk_swing: float) -> void:
+    var target_blend: float = 1.0 if _crouching else 0.0
+    _crouch_pose_blend = lerp(
+        _crouch_pose_blend,
+        target_blend,
+        clamp(CROUCH_POSE_LERP_RATE * delta, 0.0, 1.0)
+    )
+    var b: float = _crouch_pose_blend
+    var lean: float = deg_to_rad(CROUCH_TORSO_LEAN_DEG) * b
+    var knee_bend: float = deg_to_rad(CROUCH_KNEE_BEND_DEG) * b
+    var arm_forward: float = deg_to_rad(CROUCH_ARM_FORWARD_DEG) * b
+
+    character.position = _character_rest_position + Vector3(0.0, -CROUCH_BODY_DROP * b, 0.0)
+    torso.rotation = _torso_rest_rotation + Vector3(lean, 0.0, 0.0)
+    head.position = _head_rest_position + Vector3(0.0, -CROUCH_BODY_DROP * 0.35 * b, -CROUCH_HEAD_FORWARD * b)
+    hair.position = _hair_rest_position + Vector3(0.0, -CROUCH_BODY_DROP * 0.35 * b, -CROUCH_HEAD_FORWARD * b)
+    face.position = _face_rest_position + Vector3(0.0, -CROUCH_BODY_DROP * 0.35 * b, -CROUCH_HEAD_FORWARD * b)
+    head.rotation = _head_rest_rotation + Vector3(lean * 0.5, 0.0, 0.0)
+    hair.rotation = _hair_rest_rotation + Vector3(lean * 0.5, 0.0, 0.0)
+    face.rotation = _face_rest_rotation + Vector3(lean * 0.5, 0.0, 0.0)
+
+    left_hip.position = _left_hip_rest_position + Vector3(0.0, -CROUCH_HIP_DROP * b, -CROUCH_HIP_FORWARD * b)
+    right_hip.position = _right_hip_rest_position + Vector3(0.0, -CROUCH_HIP_DROP * b, -CROUCH_HIP_FORWARD * b)
+    left_hip.rotation.x = walk_swing - knee_bend
+    right_hip.rotation.x = -walk_swing - knee_bend
+    left_shoulder.rotation.x -= arm_forward
+    right_shoulder.rotation.x -= arm_forward
 
 
 func _update_block_highlight() -> void:
