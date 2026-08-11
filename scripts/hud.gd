@@ -25,13 +25,18 @@ const TOTAL_SLOTS: int = 41
 
 signal selection_changed(slot_index: int, item_type: String)
 
-# Shaped 2x2 recipes — pattern must match the crafting grid exactly (no rotation).
-# Empty slot = "".
+# Two recipe kinds, checked in order — the first recipe to match the grid wins:
+#  * Shaped:    "shape" lists all 4 slots (row-major) and must equal the grid
+#              exactly (no rotation). Empty slot = "".
+#  * Shapeless: "needs" maps each required type to its minimum slot count; the
+#              matching slots can be anywhere in the grid.
 const RECIPES: Array = [
+    {"needs": {"wood": 1}, "output": {"type": "planks", "count": 4}},
     {"shape": ["sand", "sand", "sand", "sand"], "output": {"type": "cobble", "count": 4}},
     {"shape": ["leaves", "leaves", "leaves", "leaves"], "output": {"type": "wood", "count": 2}},
     {"shape": ["dirt", "dirt", "dirt", "dirt"], "output": {"type": "grass", "count": 4}},
     {"shape": ["cobble", "cobble", "cobble", "cobble"], "output": {"type": "wood", "count": 1}},
+    {"shape": ["planks", "planks", "planks", "planks"], "output": {"type": "crafting_table", "count": 1}},
 ]
 
 @export var dirt_texture: Texture2D
@@ -40,6 +45,9 @@ const RECIPES: Array = [
 @export var wood_texture: Texture2D
 @export var leaves_texture: Texture2D
 @export var sand_texture: Texture2D
+
+var planks_texture: Texture2D = load("res://assets/generated/planks_frame_0.png")
+var crafting_table_texture: Texture2D = load("res://assets/generated/crafting_table_frame_0.png")
 
 @onready var hotbar: HBoxContainer = $Hotbar
 @onready var inventory: PanelContainer = $Inventory
@@ -439,15 +447,34 @@ func _recompute_output() -> void:
     for i in CRAFT_SIZE:
         shape.append(_slots[CRAFT_START + i].type)
     var output_slot: Dictionary = _slots[OUTPUT_INDEX]
-    for recipe in RECIPES:
-        if (recipe.shape as Array) == shape:
-            output_slot.type = recipe.output.type
-            output_slot.count = recipe.output.count
-            _refresh_slot(OUTPUT_INDEX)
-            return
-    output_slot.type = ""
-    output_slot.count = 0
+    var result: Dictionary = _recipe_output(shape)
+    output_slot.type = result.type
+    output_slot.count = result.count
     _refresh_slot(OUTPUT_INDEX)
+
+
+func _recipe_output(shape: Array) -> Dictionary:
+    # First recipe to match the grid wins. A "shape" entry compares its exact
+    # 4-slot pattern to the grid; a "needs" entry is met once every required
+    # type shows up in at least that many of the grid's slots.
+    for recipe in RECIPES:
+        if recipe.has("shape"):
+            if (recipe.shape as Array) == shape:
+                return recipe.output
+        else:
+            var needs: Dictionary = recipe.needs
+            var met: bool = true
+            for required in needs:
+                var found: int = 0
+                for slot_type in shape:
+                    if slot_type == required:
+                        found += 1
+                if found < needs[required]:
+                    met = false
+                    break
+            if met:
+                return recipe.output
+    return {"type": "", "count": 0}
 
 
 func _take_output() -> void:
@@ -521,6 +548,10 @@ func _texture_for(type: String) -> Texture2D:
             return leaves_texture
         "sand":
             return sand_texture
+        "planks":
+            return planks_texture
+        "crafting_table":
+            return crafting_table_texture
     return null
 
 

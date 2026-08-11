@@ -1,0 +1,93 @@
+class_name TestCrafting
+extends Node
+
+## Integration tests for the 2x2 inventory crafting: shapeless log -> 4x planks.
+
+const HUD_TSCN: PackedScene = preload("res://scenes/hud.tscn")
+
+var _hud: CanvasLayer
+
+
+func _new_hud() -> CanvasLayer:
+    if _hud != null:
+        _hud.queue_free()
+    _hud = HUD_TSCN.instantiate()
+    add_child(_hud)
+    if _hud._slots.is_empty():
+        # The test runner doesn't always tree-enter the fixture node, so the
+        # slot array may never have been initialized by _ready; build it
+        # deterministically here when that's the case.
+        _hud._ready()
+    return _hud
+
+
+func test_empty_grid_yields_no_output() -> void:
+    var hud: CanvasLayer = _new_hud()
+    hud._recompute_output()
+    var output: Dictionary = hud._slots[hud.OUTPUT_INDEX]
+    assert(output.type == "")
+    assert(output.count == 0)
+
+
+func test_log_anywhere_in_grid_yields_four_planks() -> void:
+    # The single-log recipe is shapeless: each of the four slots must work.
+    for slot_i in 4:
+        var hud: CanvasLayer = _new_hud()
+        hud._slots[hud.CRAFT_START + slot_i] = {"type": "wood", "count": 1}
+        hud._recompute_output()
+        var output: Dictionary = hud._slots[hud.OUTPUT_INDEX]
+        assert(output.type == "planks")
+        assert(output.count == 4)
+
+
+func test_shaped_recipes_still_match() -> void:
+    var hud: CanvasLayer = _new_hud()
+    for i in 4:
+        hud._slots[hud.CRAFT_START + i] = {"type": "sand", "count": 1}
+    hud._recompute_output()
+    var output: Dictionary = hud._slots[hud.OUTPUT_INDEX]
+    assert(output.type == "cobble")
+    assert(output.count == 4)
+
+
+func test_take_output_consumes_one_log_and_yields_planks() -> void:
+    var hud: CanvasLayer = _new_hud()
+    hud._slots[hud.CRAFT_START] = {"type": "wood", "count": 3}
+    hud._on_craft_changed(hud.CRAFT_START)
+    var output: Dictionary = hud._slots[hud.OUTPUT_INDEX]
+    assert(output.type == "planks")
+    assert(output.count == 4)
+    # Left-clicking the output with an empty cursor picks the stack up.
+    hud._slot_left_click(hud.OUTPUT_INDEX)
+    assert(hud._held.type == "planks")
+    assert(hud._held.count == 4)
+    # Exactly one log was consumed from the input stack.
+    var input: Dictionary = hud._slots[hud.CRAFT_START]
+    assert(input.type == "wood")
+    assert(input.count == 2)
+    # Output recomputes empty afterwards (still has two logs -> shapeless
+    # wood recipe re-triggers... but only 2 slots are non-empty, so it
+    # re-matches and reproduces 4 planks).
+    output = hud._slots[hud.OUTPUT_INDEX]
+    assert(output.type == "planks")
+    assert(output.count == 4)
+
+
+func test_dropping_logs_across_slots_fills_inventory() -> void:
+    var hud: CanvasLayer = _new_hud()
+    hud._held = {"type": "wood", "count": 2}
+    # Drop the whole held stack into the first crafting slot.
+    hud._slot_left_click(hud.CRAFT_START)
+    assert(hud._held.count == 0)
+    var input: Dictionary = hud._slots[hud.CRAFT_START]
+    assert(input.type == "wood")
+    assert(input.count == 2)
+    var output: Dictionary = hud._slots[hud.OUTPUT_INDEX]
+    assert(output.type == "planks")
+    assert(output.count == 4)
+    # And popping it into an inventory slot merges the stack there.
+    hud._held = {"type": "planks", "count": 4}
+    hud._slot_left_click(hud.INV_START)
+    var inv_slot: Dictionary = hud._slots[hud.INV_START]
+    assert(inv_slot.type == "planks")
+    assert(inv_slot.count == 4)
