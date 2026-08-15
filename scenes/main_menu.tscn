@@ -119,14 +119,113 @@ horizontal_alignment = 1
 custom_minimum_size = Vector2(0, 4)
 layout_mode = 2
 
-[node name="PlayButton" type="Button" parent="UI/Center/Panel/VBox" unique_id=523975460]
+[node name="MainButtons" type="VBoxContainer" parent="UI/Center/Panel/VBox" unique_id=1942953076]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="PlayButton" type="Button" parent="UI/Center/Panel/VBox/MainButtons" unique_id=523975460]
 custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-text = "Play"
+text = "Play Single Player"
 
-[node name="QuitButton" type="Button" parent="UI/Center/Panel/VBox" unique_id=489984728]
+[node name="HostButton" type="Button" parent="UI/Center/Panel/VBox/MainButtons" unique_id=970360008]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Host Multiplayer"
+
+[node name="JoinButton" type="Button" parent="UI/Center/Panel/VBox/MainButtons" unique_id=1099697957]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Join Multiplayer"
+
+[node name="QuitButton" type="Button" parent="UI/Center/Panel/VBox/MainButtons" unique_id=489984728]
 custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "Quit"
+
+[node name="HostView" type="VBoxContainer" parent="UI/Center/Panel/VBox" unique_id=1126489264]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="StatusLabel" type="Label" parent="UI/Center/Panel/VBox/HostView" unique_id=898741266]
+custom_minimum_size = Vector2(336, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.9, 0.94, 1)
+theme_override_font_sizes/font_size = 18
+text = "Creating room..."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="RoomCodeLabel" type="Label" parent="UI/Center/Panel/VBox/HostView" unique_id=1437788239]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0.05, 0.05, 0.05, 0.9)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 48
+text = "----"
+horizontal_alignment = 1
+
+[node name="HintLabel" type="Label" parent="UI/Center/Panel/VBox/HostView" unique_id=818106092]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.76, 1)
+theme_override_font_sizes/font_size = 14
+text = "Share this code with friends"
+horizontal_alignment = 1
+
+[node name="StartButton" type="Button" parent="UI/Center/Panel/VBox/HostView" unique_id=639512160]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+disabled = true
+text = "Enter World"
+
+[node name="CancelButton" type="Button" parent="UI/Center/Panel/VBox/HostView" unique_id=1676506921]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Cancel"
+
+[node name="JoinView" type="VBoxContainer" parent="UI/Center/Panel/VBox" unique_id=1898053815]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ViewTitle" type="Label" parent="UI/Center/Panel/VBox/JoinView" unique_id=911009283]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 24
+text = "Join Multiplayer"
+horizontal_alignment = 1
+
+[node name="CodeInput" type="LineEdit" parent="UI/Center/Panel/VBox/JoinView" unique_id=603748204]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+placeholder_text = "1234"
+alignment = 1
+max_length = 4
+
+[node name="StatusLabel" type="Label" parent="UI/Center/Panel/VBox/JoinView" unique_id=418090309]
+custom_minimum_size = Vector2(336, 20)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.78, 0.84, 1)
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="ConnectButton" type="Button" parent="UI/Center/Panel/VBox/JoinView" unique_id=268281371]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Join Room"
+
+[node name="CancelButton" type="Button" parent="UI/Center/Panel/VBox/JoinView" unique_id=1968747481]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Cancel"

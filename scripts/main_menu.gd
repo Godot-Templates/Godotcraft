@@ -18,25 +18,64 @@ const DRIFT_SPEED: float = 0.9  # anchor drifts so new terrain streams in
 const TITLE_SWAY_DEGREES: float = 1.5
 const TITLE_PULSE_AMOUNT: float = 0.025
 const TITLE_ANIMATION_SPEED: float = 1.2
+const VIEW_MAIN: String = "main"
+const VIEW_HOST: String = "host"
+const VIEW_JOIN: String = "join"
 
 @onready var _pivot: Node3D = $CameraAnchor/Pivot
 @onready var _camera: Camera3D = $CameraAnchor/Pivot/Camera3D
 @onready var _anchor: Node3D = $CameraAnchor
 @onready var _title: Label = $UI/Center/Panel/VBox/Title
-@onready var _play_button: Button = $UI/Center/Panel/VBox/PlayButton
-@onready var _quit_button: Button = $UI/Center/Panel/VBox/QuitButton
+@onready var _main_buttons: VBoxContainer = $UI/Center/Panel/VBox/MainButtons
+@onready var _play_button: Button = $UI/Center/Panel/VBox/MainButtons/PlayButton
+@onready var _host_button: Button = $UI/Center/Panel/VBox/MainButtons/HostButton
+@onready var _join_button: Button = $UI/Center/Panel/VBox/MainButtons/JoinButton
+@onready var _quit_button: Button = $UI/Center/Panel/VBox/MainButtons/QuitButton
+@onready var _host_view: VBoxContainer = $UI/Center/Panel/VBox/HostView
+@onready var _host_status: Label = $UI/Center/Panel/VBox/HostView/StatusLabel
+@onready var _room_code_label: Label = $UI/Center/Panel/VBox/HostView/RoomCodeLabel
+@onready var _host_start_button: Button = $UI/Center/Panel/VBox/HostView/StartButton
+@onready var _host_cancel_button: Button = $UI/Center/Panel/VBox/HostView/CancelButton
+@onready var _join_view: VBoxContainer = $UI/Center/Panel/VBox/JoinView
+@onready var _code_input: LineEdit = $UI/Center/Panel/VBox/JoinView/CodeInput
+@onready var _join_status: Label = $UI/Center/Panel/VBox/JoinView/StatusLabel
+@onready var _connect_button: Button = $UI/Center/Panel/VBox/JoinView/ConnectButton
+@onready var _join_cancel_button: Button = $UI/Center/Panel/VBox/JoinView/CancelButton
 
 var _time: float = 0.0
+var _multiplayer_manager: MultiplayerManager
+var _pending_multiplayer_action: String = ""
 
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_camera.position = Vector3(0.0, CAMERA_HEIGHT, ORBIT_RADIUS)
+	_multiplayer_manager = get_node("/root/MpManager") as MultiplayerManager
 	_setup_title_animation()
-	_setup_button(_play_button)
-	_setup_button(_quit_button)
+	for button: Button in [
+		_play_button,
+		_host_button,
+		_join_button,
+		_quit_button,
+		_host_start_button,
+		_host_cancel_button,
+		_connect_button,
+		_join_cancel_button,
+	]:
+		_setup_button(button)
 	_play_button.pressed.connect(_on_play_pressed)
+	_host_button.pressed.connect(_on_host_pressed)
+	_join_button.pressed.connect(_on_show_join)
 	_quit_button.pressed.connect(_on_quit_pressed)
+	_host_start_button.pressed.connect(_start_game)
+	_host_cancel_button.pressed.connect(_on_multiplayer_cancelled)
+	_connect_button.pressed.connect(_on_join_pressed)
+	_join_cancel_button.pressed.connect(_on_multiplayer_cancelled)
+	_code_input.text_submitted.connect(_on_code_submitted)
+	_multiplayer_manager.room_created.connect(_on_room_created)
+	_multiplayer_manager.room_joined.connect(_on_room_joined)
+	_multiplayer_manager.connection_failed.connect(_on_connection_failed)
+	_show_view(VIEW_MAIN)
 	# Fade the whole UI in on load.
 	var ui: Control = $UI/Center
 	ui.modulate.a = 0.0
@@ -87,9 +126,112 @@ func _scale_button(button: Button, target: Vector2, duration: float = 0.18) -> v
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
+func _show_view(view: String) -> void:
+	_main_buttons.visible = view == VIEW_MAIN
+	_host_view.visible = view == VIEW_HOST
+	_join_view.visible = view == VIEW_JOIN
+
+
 func _on_play_pressed() -> void:
-	_play_button.disabled = true
-	_quit_button.disabled = true
+	if _multiplayer_manager.is_active():
+		_multiplayer_manager.leave_room()
+	_pending_multiplayer_action = ""
+	_start_game()
+
+
+func _on_host_pressed() -> void:
+	if _multiplayer_manager.is_active():
+		_multiplayer_manager.leave_room()
+	_pending_multiplayer_action = "host"
+	_show_view(VIEW_HOST)
+	_host_status.text = "Creating room..."
+	_room_code_label.text = "----"
+	_host_start_button.disabled = true
+	var code: String = _multiplayer_manager.create_room()
+	if code.is_empty():
+		_pending_multiplayer_action = ""
+		_host_status.text = "Unable to create a room. Please try again."
+		return
+	_room_code_label.text = code
+	_host_status.text = "Connecting to room..."
+
+
+func _on_show_join() -> void:
+	if _multiplayer_manager.is_active():
+		_multiplayer_manager.leave_room()
+	_pending_multiplayer_action = ""
+	_code_input.clear()
+	_join_status.text = "Enter the 4-digit room code"
+	_connect_button.disabled = false
+	_show_view(VIEW_JOIN)
+	_code_input.grab_focus.call_deferred()
+
+
+func _on_join_pressed() -> void:
+	_on_code_submitted(_code_input.text)
+
+
+func _on_code_submitted(text: String) -> void:
+	var code: String = text.strip_edges()
+	if code.length() != 4 or not code.is_valid_int():
+		_join_status.text = "Enter exactly 4 digits."
+		return
+	_pending_multiplayer_action = "join"
+	_connect_button.disabled = true
+	_join_status.text = "Connecting to room %s..." % code
+	var started: bool = _multiplayer_manager.join_room(code)
+	if not started:
+		_pending_multiplayer_action = ""
+		_connect_button.disabled = false
+		_join_status.text = "Unable to join that room. Please try again."
+
+
+func _on_room_created(code: String) -> void:
+	if _pending_multiplayer_action != "host":
+		return
+	_room_code_label.text = code
+	_host_status.text = "Room ready"
+	_host_start_button.disabled = false
+
+
+func _on_room_joined(code: String) -> void:
+	if _pending_multiplayer_action != "join":
+		return
+	_pending_multiplayer_action = ""
+	_join_status.text = "Joined room %s" % code
+	_start_game()
+
+
+func _on_connection_failed(_details: String) -> void:
+	if _pending_multiplayer_action == "host":
+		_host_status.text = "Connection failed. Cancel and try again."
+		_room_code_label.text = "----"
+		_host_start_button.disabled = true
+	elif _pending_multiplayer_action == "join":
+		_join_status.text = "Connection failed. Check the code and try again."
+		_connect_button.disabled = false
+	_pending_multiplayer_action = ""
+
+
+func _on_multiplayer_cancelled() -> void:
+	if _multiplayer_manager.is_active():
+		_multiplayer_manager.leave_room()
+	_pending_multiplayer_action = ""
+	_show_view(VIEW_MAIN)
+
+
+func _start_game() -> void:
+	for button: Button in [
+		_play_button,
+		_host_button,
+		_join_button,
+		_quit_button,
+		_host_start_button,
+		_host_cancel_button,
+		_connect_button,
+		_join_cancel_button,
+	]:
+		button.disabled = true
 	var transition: SceneTransitionManager = get_node("/root/SceneTransition") as SceneTransitionManager
 	transition.transition_to(MAIN_SCENE)
 
