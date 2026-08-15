@@ -38,73 +38,19 @@ fog_density = 0.012
 fog_aerial_perspective = 0.5
 fog_sky_affect = 0.4
 
-[sub_resource type="StyleBoxFlat" id="PanelStyle_1"]
-content_margin_left = 40.0
-content_margin_top = 32.0
-content_margin_right = 40.0
-content_margin_bottom = 32.0
-bg_color = Color(0.05, 0.04, 0.12, 0.55)
-corner_radius_top_left = 16
-corner_radius_top_right = 16
-corner_radius_bottom_right = 16
-corner_radius_bottom_left = 16
+[sub_resource type="SystemFont" id="TitleFont_1"]
+font_names = PackedStringArray("Open Sans", "Arial", "Helvetica", "Sans")
+font_weight = 800
+subpixel_positioning = 0
 
 [sub_resource type="LabelSettings" id="TitleSettings_1"]
+font = SubResource("TitleFont_1")
 font_size = 64
-font_color = Color(0.95, 0.93, 1, 1)
-outline_size = 10
-outline_color = Color(0.2, 0.15, 0.45, 1)
-shadow_size = 8
-shadow_color = Color(0, 0, 0, 0.4)
-shadow_offset = Vector2(0, 4)
-
-[sub_resource type="StyleBoxFlat" id="BtnNormal_1"]
-content_margin_left = 24.0
-content_margin_top = 12.0
-content_margin_right = 24.0
-content_margin_bottom = 12.0
-bg_color = Color(0.16, 0.14, 0.32, 0.9)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.45, 0.4, 0.8, 0.6)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
-
-[sub_resource type="StyleBoxFlat" id="BtnPressed_1"]
-content_margin_left = 24.0
-content_margin_top = 12.0
-content_margin_right = 24.0
-content_margin_bottom = 12.0
-bg_color = Color(0.1, 0.09, 0.22, 0.95)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.5, 0.45, 0.85, 0.8)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
-
-[sub_resource type="StyleBoxFlat" id="BtnHover_1"]
-content_margin_left = 24.0
-content_margin_top = 12.0
-content_margin_right = 24.0
-content_margin_bottom = 12.0
-bg_color = Color(0.24, 0.21, 0.46, 0.95)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.65, 0.6, 1, 0.9)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
+outline_size = 6
+outline_color = Color(0.06, 0.06, 0.06, 0.9)
+shadow_size = 3
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_offset = Vector2(0, 3)
 
 [node name="MainMenu" type="Node3D" unique_id=647547191]
 script = ExtResource("1_menu")
@@ -138,6 +84,15 @@ far = 300.0
 
 [node name="UI" type="CanvasLayer" parent="." unique_id=138781435]
 
+[node name="BackgroundDim" type="ColorRect" parent="UI" unique_id=1849728312]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.55)
+
 [node name="Center" type="CenterContainer" parent="UI" unique_id=1482475320]
 anchors_preset = 15
 anchor_right = 1.0
@@ -145,13 +100,13 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Panel" type="PanelContainer" parent="UI/Center" unique_id=270203563]
+[node name="Panel" type="MarginContainer" parent="UI/Center" unique_id=270203563]
+custom_minimum_size = Vector2(336, 0)
 layout_mode = 2
-theme_override_styles/panel = SubResource("PanelStyle_1")
 
 [node name="VBox" type="VBoxContainer" parent="UI/Center/Panel" unique_id=537738186]
 layout_mode = 2
-theme_override_constants/separation = 18
+theme_override_constants/separation = 12
 alignment = 1
 
 [node name="Title" type="Label" parent="UI/Center/Panel/VBox" unique_id=922361284]
@@ -161,25 +116,19 @@ label_settings = SubResource("TitleSettings_1")
 horizontal_alignment = 1
 
 [node name="Spacer" type="Control" parent="UI/Center/Panel/VBox" unique_id=1853771138]
-custom_minimum_size = Vector2(0, 12)
+custom_minimum_size = Vector2(0, 4)
 layout_mode = 2
 
 [node name="PlayButton" type="Button" parent="UI/Center/Panel/VBox" unique_id=523975460]
-custom_minimum_size = Vector2(260, 0)
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
-theme_override_styles/normal = SubResource("BtnNormal_1")
-theme_override_styles/pressed = SubResource("BtnPressed_1")
-theme_override_styles/hover = SubResource("BtnHover_1")
+theme_override_font_sizes/font_size = 16
 text = "Play"
 
 [node name="QuitButton" type="Button" parent="UI/Center/Panel/VBox" unique_id=489984728]
-custom_minimum_size = Vector2(260, 0)
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
-theme_override_font_sizes/font_size = 26
-theme_override_styles/normal = SubResource("BtnNormal_1")
-theme_override_styles/pressed = SubResource("BtnPressed_1")
-theme_override_styles/hover = SubResource("BtnHover_1")
+theme_override_font_sizes/font_size = 16
 text = "Quit"
 
 [node name="Fade" type="ColorRect" parent="UI" unique_id=1265821933]

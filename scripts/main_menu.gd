@@ -15,6 +15,9 @@ const CAMERA_HEIGHT: float = 20.0
 const BOB_AMPLITUDE: float = 2.5
 const BOB_SPEED: float = 0.13
 const DRIFT_SPEED: float = 0.9  # anchor drifts so new terrain streams in
+const TITLE_SWAY_DEGREES: float = 1.5
+const TITLE_PULSE_AMOUNT: float = 0.025
+const TITLE_ANIMATION_SPEED: float = 1.2
 
 @onready var _pivot: Node3D = $CameraAnchor/Pivot
 @onready var _camera: Camera3D = $CameraAnchor/Pivot/Camera3D
@@ -24,12 +27,12 @@ const DRIFT_SPEED: float = 0.9  # anchor drifts so new terrain streams in
 @onready var _quit_button: Button = $UI/Center/Panel/VBox/QuitButton
 
 var _time: float = 0.0
-var _title_base_y: float = 0.0
 
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_camera.position = Vector3(0.0, CAMERA_HEIGHT, ORBIT_RADIUS)
+	_setup_title_animation()
 	_setup_button(_play_button)
 	_setup_button(_quit_button)
 	_play_button.pressed.connect(_on_play_pressed)
@@ -40,8 +43,6 @@ func _ready() -> void:
 	var tween: Tween = create_tween()
 	tween.tween_property(ui, "modulate:a", 1.0, 0.8) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	await get_tree().process_frame
-	_title_base_y = _title.position.y
 
 
 func _process(delta: float) -> void:
@@ -53,9 +54,17 @@ func _process(delta: float) -> void:
 	_anchor.position.x += cos(_time * 0.02) * DRIFT_SPEED * delta
 	_anchor.position.z += sin(_time * 0.02) * DRIFT_SPEED * delta
 	_camera.look_at(_anchor.global_position + Vector3(0.0, 4.0, 0.0))
-	# Subtle floating title.
-	if _title_base_y != 0.0:
-		_title.position.y = _title_base_y + sin(_time * 1.4) * 4.0
+	# A restrained sway and pulse keeps the title alive without hurting readability.
+	var title_wave: float = sin(_time * TITLE_ANIMATION_SPEED)
+	_title.rotation = deg_to_rad(title_wave * TITLE_SWAY_DEGREES)
+	var title_scale: float = 1.0 + title_wave * TITLE_PULSE_AMOUNT
+	_title.scale = Vector2(title_scale, title_scale)
+
+
+func _setup_title_animation() -> void:
+	_title.pivot_offset = _title.size / 2.0
+	_title.resized.connect(func() -> void:
+		_title.pivot_offset = _title.size / 2.0)
 
 
 func _setup_button(button: Button) -> void:
