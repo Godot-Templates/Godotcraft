@@ -26,10 +26,10 @@ extends Node3D
 ## with one CollisionShape3D per exposed block.
 
 const CHUNK_SIZE: int = 16
-const RENDER_DISTANCE: int = 3  # chunks (chebyshev radius) kept loaded around player
-const UNLOAD_DISTANCE: int = 6  # chunks beyond this radius are unloaded
+const RENDER_DISTANCE: int = 5  # chunks (chebyshev radius) kept loaded around player
+const UNLOAD_DISTANCE: int = 8  # chunks beyond this radius are unloaded
 const INITIAL_SYNC_RADIUS: int = 1  # 3x3 generated synchronously (ground under spawn)
-const INITIAL_STREAM_RADIUS: int = 5  # 11x11 initial world, streamed in the background
+const INITIAL_STREAM_RADIUS: int = 6  # 13x13 initial world, streamed in the background
 const COLLISION_DISTANCE: int = 1  # only chunks this close to the player get colliders
 const GEN_BUDGET_USEC: int = 3500  # per-frame time budget for chunk work
 

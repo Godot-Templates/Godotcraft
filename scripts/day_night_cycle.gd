@@ -11,13 +11,13 @@ const SUN_YAW_DEG: float = -30.0
 # --- Sky palettes ---
 const DAY_SKY_TOP: Color = Color(0.25, 0.52, 0.92)
 const DAY_SKY_HORIZON: Color = Color(0.62, 0.80, 0.96)
-const DAY_GROUND_BOTTOM: Color = Color(0.22, 0.25, 0.30)
-const DAY_GROUND_HORIZON: Color = Color(0.60, 0.74, 0.88)
+const DAY_GROUND_BOTTOM: Color = Color(0.55, 0.68, 0.84)
+const DAY_GROUND_HORIZON: Color = Color(0.62, 0.76, 0.90)
 
 const NIGHT_SKY_TOP: Color = Color(0.06, 0.05, 0.22)
 const NIGHT_SKY_HORIZON: Color = Color(0.32, 0.26, 0.58)
-const NIGHT_GROUND_BOTTOM: Color = Color(0.03, 0.03, 0.09)
-const NIGHT_GROUND_HORIZON: Color = Color(0.18, 0.16, 0.34)
+const NIGHT_GROUND_BOTTOM: Color = Color(0.14, 0.13, 0.28)
+const NIGHT_GROUND_HORIZON: Color = Color(0.20, 0.18, 0.38)
 
 const SUNSET_HORIZON: Color = Color(0.98, 0.52, 0.26)
 const SUNSET_TOP_TINT: Color = Color(0.45, 0.30, 0.50)

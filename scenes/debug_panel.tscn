@@ -1,6 +1,6 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3 uid="uid://8sm2nh8v5aa6"]
 
-[ext_resource type="Script" path="res://scripts/debug_panel.gd" id="1_debug"]
+[ext_resource type="Script" uid="uid://c5imd58lq7s3y" path="res://scripts/debug_panel.gd" id="1_debug"]
 
 [sub_resource type="StyleBoxFlat" id="PanelStyle"]
 bg_color = Color(0, 0, 0, 0.55)
@@ -14,13 +14,11 @@ font_size = 10
 outline_size = 3
 outline_color = Color(0, 0, 0, 0.6)
 
-[node name="DebugPanel" type="CanvasLayer"]
+[node name="DebugPanel" type="CanvasLayer" unique_id=2118120229]
 layer = 10
 script = ExtResource("1_debug")
 
-[node name="Panel" type="PanelContainer" parent="."]
-anchor_left = 0.0
-anchor_right = 0.0
+[node name="Panel" type="PanelContainer" parent="." unique_id=1989937893]
 offset_left = 8.0
 offset_top = 8.0
 offset_right = 240.0
@@ -28,7 +26,7 @@ offset_bottom = 40.0
 mouse_filter = 2
 theme_override_styles/panel = SubResource("PanelStyle")
 
-[node name="Margin" type="MarginContainer" parent="Panel"]
+[node name="Margin" type="MarginContainer" parent="Panel" unique_id=1161259783]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/margin_left = 10
@@ -36,8 +34,7 @@ theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 8
 
-[node name="Label" type="Label" parent="Panel/Margin"]
+[node name="Label" type="Label" parent="Panel/Margin" unique_id=1419631292]
 layout_mode = 2
-mouse_filter = 2
 text = "Press ` or ~ to toggle this panel"
 label_settings = SubResource("LabelSettings_1")
