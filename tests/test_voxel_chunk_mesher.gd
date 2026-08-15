@@ -35,6 +35,22 @@ func test_adjacent_blocks_remove_shared_face_and_greedy_merge() -> void:
 	assert(MESHER.quad_count(surfaces) == 6)
 
 
+func test_adjacent_blocks_keep_one_texture_tile_per_block_on_every_face() -> void:
+	var positions: Array[Vector3i] = [Vector3i.ZERO, Vector3i.RIGHT]
+	var blocks: Dictionary = {Vector3i.ZERO: DIRT, Vector3i.RIGHT: DIRT}
+	var surfaces: Dictionary = MESHER.build(Vector2i.ZERO, blocks, _chunk_index(positions), _bottoms_for(positions), CHUNK_SIZE, GRASS, DIRT)
+	var surface: Dictionary = surfaces[DIRT] as Dictionary
+	var vertices: Array = surface["vertices"] as Array
+	var uvs: Array = surface["uvs"] as Array
+	for quad_start: int in range(0, vertices.size(), 4):
+		var first_world_edge: float = (vertices[quad_start + 1] as Vector3).distance_to(vertices[quad_start] as Vector3)
+		var second_world_edge: float = (vertices[quad_start + 2] as Vector3).distance_to(vertices[quad_start + 1] as Vector3)
+		var first_uv_edge: float = (uvs[quad_start + 1] as Vector2).distance_to(uvs[quad_start] as Vector2)
+		var second_uv_edge: float = (uvs[quad_start + 2] as Vector2).distance_to(uvs[quad_start + 1] as Vector2)
+		assert(is_equal_approx(first_uv_edge, first_world_edge))
+		assert(is_equal_approx(second_uv_edge, second_world_edge))
+
+
 func test_grass_uses_grass_top_and_dirt_sides() -> void:
 	var positions: Array[Vector3i] = [Vector3i.ZERO]
 	var blocks: Dictionary = {Vector3i.ZERO: GRASS}

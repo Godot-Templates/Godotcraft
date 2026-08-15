@@ -88,7 +88,9 @@ static func _emit_horizontal_rects(
 		else:
 			normal = Vector3.DOWN
 			corners = [Vector3(x0, plane_y, z0), Vector3(x0, plane_y, z1), Vector3(x1, plane_y, z1), Vector3(x1, plane_y, z0)]
-		_append_quad(surfaces, String(rect["key"]), corners, normal, float(rect["width"]), float(rect["height"]))
+		var uv_width: float = float(rect["height"]) if face == FACE_DOWN else float(rect["width"])
+		var uv_height: float = float(rect["width"]) if face == FACE_DOWN else float(rect["height"])
+		_append_quad(surfaces, String(rect["key"]), corners, normal, uv_width, uv_height)
 
 
 static func _build_x_faces(
@@ -147,7 +149,9 @@ static func _emit_x_rects(
 		else:
 			normal = Vector3.LEFT
 			corners = [Vector3(plane_x, y0, z0), Vector3(plane_x, y1, z0), Vector3(plane_x, y1, z1), Vector3(plane_x, y0, z1)]
-		_append_quad(surfaces, String(rect["key"]), corners, normal, float(rect["width"]), float(rect["height"]))
+		var uv_width: float = float(rect["height"]) if face == FACE_NEG_X else float(rect["width"])
+		var uv_height: float = float(rect["width"]) if face == FACE_NEG_X else float(rect["height"])
+		_append_quad(surfaces, String(rect["key"]), corners, normal, uv_width, uv_height)
 
 
 static func _build_z_faces(
@@ -206,7 +210,9 @@ static func _emit_z_rects(
 		else:
 			normal = Vector3.FORWARD
 			corners = [Vector3(x0, y0, plane_z), Vector3(x1, y0, plane_z), Vector3(x1, y1, plane_z), Vector3(x0, y1, plane_z)]
-		_append_quad(surfaces, String(rect["key"]), corners, normal, float(rect["width"]), float(rect["height"]))
+		var uv_width: float = float(rect["height"]) if face == FACE_POS_Z else float(rect["width"])
+		var uv_height: float = float(rect["width"]) if face == FACE_POS_Z else float(rect["height"])
+		_append_quad(surfaces, String(rect["key"]), corners, normal, uv_width, uv_height)
 
 
 static func _empty_mask(size: int) -> Array[String]:
