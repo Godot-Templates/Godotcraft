@@ -248,6 +248,15 @@ func get_spawn_height() -> int:
     return _spawn_height
 
 
+func get_surface_y(x: int, z: int) -> int:
+    ## Highest solid block's top surface at (x, z), or the world spawn height
+    ## as a fallback if the column is empty (e.g. outside the generated chunk).
+    for y in range(40, -20, -1):
+        if has_block(Vector3i(x, y, z)):
+            return y + 1
+    return _spawn_height + 1
+
+
 func get_block_snapshot() -> Array[Dictionary]:
     var snapshot: Array[Dictionary] = []
     snapshot.resize(_block_types.size())
