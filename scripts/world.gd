@@ -15,20 +15,19 @@ extends Node3D
 ##   chunk coordinate, so workers touch no shared state; the main thread only
 ##   merges the finished block data and updates visuals/colliders, inside a
 ##   per-frame time budget, so streaming never blocks a frame for long.
-## - Only *exposed* blocks (those with at least one open face) get a MultiMesh
-##   instance and a collider. Buried blocks are pure dictionary data until
-##   mining reveals them. This cuts instance and collider counts ~6x.
-##
-## Rendering: one MultiMeshInstance3D per block type. Grass additionally gets a
-## green top quad from its own MultiMesh. Collision: one shared StaticBody3D
-## with one CollisionShape3D per exposed block.
+## - Each loaded chunk owns one greedy ArrayMesh containing only visible faces.
+##   This gives Godot chunk-level frustum culling and merges adjacent coplanar
+##   faces of the same material into large quads.
+## - Nearby chunks each own one concave collision shape generated from that same
+##   mesh. Block edits immediately rebuild their chunk (and a border neighbor
+##   when needed), so rendering and collision remain in sync.
 
 const CHUNK_SIZE: int = 16
 const RENDER_DISTANCE: int = 5  # chunks (chebyshev radius) kept loaded around player
-const UNLOAD_DISTANCE: int = 8  # chunks beyond this radius are unloaded
+const UNLOAD_DISTANCE: int = 6  # one-chunk hysteresis beyond the render radius
 const INITIAL_SYNC_RADIUS: int = 1  # 3x3 generated synchronously (ground under spawn)
-const INITIAL_STREAM_RADIUS: int = 6  # 13x13 initial world, streamed in the background
-const COLLISION_DISTANCE: int = 1  # only chunks this close to the player get colliders
+const INITIAL_STREAM_RADIUS: int = 5  # match the normal 11x11 render window
+const COLLISION_DISTANCE: int = 3  # covers animals throughout their 48 m active radius
 const GEN_BUDGET_USEC: int = 3500  # per-frame time budget for chunk work
 
 const SURFACE_DEPTH: int = 24  # enough underground volume for explorable caves
@@ -73,17 +72,9 @@ const TYPE_SAND: String = "sand"
 const ALL_BODY_TYPES: Array = [
 	TYPE_DIRT, TYPE_GRASS, TYPE_COBBLE, TYPE_WOOD, TYPE_LEAVES, TYPE_SAND,
 ]
-const INITIAL_CAPACITY: Dictionary = {
-	TYPE_DIRT: 6000,
-	TYPE_GRASS: 12000,
-	TYPE_COBBLE: 8000,
-	TYPE_WOOD: 1500,
-	TYPE_LEAVES: 5000,
-	TYPE_SAND: 8000,
-}
-const GRASS_TOP_CAPACITY: int = 12000
-const POOL_GROW_STEP: int = 2000
-const OFFSCREEN: Vector3 = Vector3(0.0, -10000.0, 0.0)
+const CHUNK_NEIGHBOR_DIRS: Array[Vector2i] = [
+	Vector2i.RIGHT, Vector2i.LEFT, Vector2i.UP, Vector2i.DOWN,
+]
 
 @export var world_seed: int = DEFAULT_SEED
 @export var dirt_texture: Texture2D
@@ -93,23 +84,13 @@ const OFFSCREEN: Vector3 = Vector3(0.0, -10000.0, 0.0)
 @export var leaves_texture: Texture2D
 @export var sand_texture: Texture2D
 
-var _shape: BoxShape3D
 var _collision_body: StaticBody3D
-
-var _mm_inst: Dictionary = {}  # type → MultiMeshInstance3D
-var _mm_used: Dictionary = {}  # type → int (highest-ever-allocated index)
-var _mm_free: Dictionary = {}  # type → Array[int] freed indices
-
-var _grass_top_mm: MultiMeshInstance3D
-var _grass_top_used: int = 0
-var _grass_top_free: Array[int] = []
+var _materials: Dictionary = {}  # render key → StandardMaterial3D
+var _chunk_meshes: Dictionary = {}  # Vector2i → MeshInstance3D
+var _chunk_collision_shapes: Dictionary = {}  # Vector2i → CollisionShape3D
 
 # World data. _block_types holds every loaded block (visible or buried).
-# The idx/collider dicts only have entries for exposed (visible) blocks.
 var _block_types: Dictionary = {}  # Vector3i → String
-var _block_body_idx: Dictionary = {}  # Vector3i → int
-var _block_top_idx: Dictionary = {}  # Vector3i → int (grass blocks)
-var _block_colliders: Dictionary = {}  # Vector3i → CollisionShape3D
 
 # Chunk streaming state.
 var _chunk_blocks: Dictionary = {}  # Vector2i → Dictionary(Vector3i → true)
@@ -124,6 +105,9 @@ var _column_cache: Dictionary = {}  # Vector2i → Array [height, biome]
 var _gen_mutex: Mutex = Mutex.new()
 var _gen_tasks: Dictionary = {}  # Vector2i → int (WorkerThreadPool task id)
 var _gen_results: Dictionary = {}  # Vector2i → {"blocks": ..., "columns": ...}
+var _mesh_mutex: Mutex = Mutex.new()
+var _mesh_tasks: Dictionary = {}  # Vector2i → int (WorkerThreadPool task id)
+var _mesh_results: Dictionary = {}  # Vector2i → greedy surface data
 
 # _job_step outcomes.
 const STEP_PROGRESS: int = 0  # did some work, call again
@@ -134,11 +118,6 @@ const STEP_BLOCKED: int = 2  # waiting on a worker thread, skip for now
 # so a step can stop mid-batch instead of overshooting the frame budget.
 # Sync generation paths leave it at "infinity".
 var _job_deadline_usec: int = 9223372036854775807
-
-# Retired CollisionShape3D nodes ready for reuse. Creating/freeing collider
-# nodes per block churned thousands of node allocations and tree operations
-# every chunk crossing; pooled nodes just flip `disabled` instead.
-var _collider_pool: Array = []
 
 var _player: Node3D
 var _last_player_chunk: Vector2i = Vector2i(1000000, 1000000)
@@ -182,6 +161,7 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	# Every WorkerThreadPool task must be waited on before we go away.
 	_flush_gen_tasks()
+	_flush_mesh_tasks()
 
 
 ## Queues the rest of the starting world (out to INITIAL_STREAM_RADIUS),
@@ -297,29 +277,14 @@ func _refresh_collision_window(pc: Vector2i) -> void:
 func _collide_step(job: Dictionary, enable: bool) -> bool:
 	# Collision-window changes can leave the opposite job queued behind the new
 	# one. Drop stale work before it undoes the current desired state.
-	if enable != _collided.has(job["coord"]):
+	var coord: Vector2i = job["coord"]
+	if enable != _collided.has(coord):
 		return true
-	if job["phase"] == 0:
-		var list: Array = []
-		for pos_variant in _chunk_blocks.get(job["coord"], {}).keys():
-			if _block_body_idx.has(pos_variant):  # exposed blocks only
-				list.append(pos_variant)
-		job["list"] = list
-		job["phase"] = 1
-		job["idx"] = 0
-	var blocks: Array = job["list"]
-	var idx: int = job["idx"]
-	var end: int = mini(idx + 128, blocks.size())
-	while idx < end and Time.get_ticks_usec() < _job_deadline_usec:
-		var pos: Vector3i = blocks[idx]
-		if enable:
-			if _block_types.has(pos) and _block_body_idx.has(pos) and not _block_colliders.has(pos):
-				_create_collider(pos)
-		else:
-			_free_collider(pos)
-		idx += 1
-	job["idx"] = idx
-	return idx >= blocks.size()
+	if enable:
+		_rebuild_chunk_collision(coord)
+	else:
+		_remove_chunk_collision(coord)
+	return true
 
 
 func _make_gen_job(coord: Vector2i) -> Dictionary:
@@ -373,6 +338,93 @@ func _flush_gen_tasks() -> void:
 	_gen_mutex.lock()
 	_gen_results.clear()
 	_gen_mutex.unlock()
+
+
+func _dispatch_mesh(coord: Vector2i) -> void:
+	if _mesh_tasks.has(coord):
+		return
+	var input: Dictionary = _capture_mesh_input(coord)
+	_mesh_tasks[coord] = WorkerThreadPool.add_task(
+		_thread_build_mesh.bind(coord, input), false, "chunk mesh")
+
+
+func _capture_mesh_input(coord: Vector2i) -> Dictionary:
+	var source_owned: Dictionary = _chunk_blocks.get(coord, {})
+	var owned: Dictionary = {}
+	var blocks: Dictionary = {}
+	var min_y: int = 2147483647
+	var max_y: int = -2147483648
+	for pos_variant: Variant in source_owned.keys():
+		var pos: Vector3i = pos_variant
+		owned[pos] = true
+		blocks[pos] = _block_types[pos]
+		min_y = mini(min_y, pos.y)
+		max_y = maxi(max_y, pos.y)
+	var bottoms: Dictionary = {}
+	var base_x: int = coord.x * CHUNK_SIZE
+	var base_z: int = coord.y * CHUNK_SIZE
+	for x: int in range(base_x, base_x + CHUNK_SIZE):
+		for z: int in range(base_z, base_z + CHUNK_SIZE):
+			bottoms[Vector2i(x, z)] = _column_info(x, z)[0] - SURFACE_DEPTH
+	if not owned.is_empty():
+		# Only 64 outside columns can affect horizontal border visibility. Fixed
+		# coordinate scans are substantially cheaper than walking four complete
+		# neighboring chunk dictionaries.
+		for y: int in range(min_y, max_y + 1):
+			for offset: int in CHUNK_SIZE:
+				_copy_mesh_border_block(blocks, Vector3i(base_x - 1, y, base_z + offset))
+				_copy_mesh_border_block(blocks, Vector3i(base_x + CHUNK_SIZE, y, base_z + offset))
+				_copy_mesh_border_block(blocks, Vector3i(base_x + offset, y, base_z - 1))
+				_copy_mesh_border_block(blocks, Vector3i(base_x + offset, y, base_z + CHUNK_SIZE))
+	return {"blocks": blocks, "owned": owned, "bottoms": bottoms}
+
+
+func _copy_mesh_border_block(blocks: Dictionary, pos: Vector3i) -> void:
+	if _block_types.has(pos):
+		blocks[pos] = _block_types[pos]
+
+
+func _thread_build_mesh(coord: Vector2i, input: Dictionary) -> void:
+	var surfaces: Dictionary = VoxelChunkMesher.build(
+		coord,
+		input["blocks"] as Dictionary,
+		input["owned"] as Dictionary,
+		input["bottoms"] as Dictionary,
+		CHUNK_SIZE,
+		TYPE_GRASS,
+		TYPE_DIRT
+	)
+	_mesh_mutex.lock()
+	_mesh_results[coord] = surfaces
+	_mesh_mutex.unlock()
+
+
+func _take_mesh_result(coord: Vector2i) -> Dictionary:
+	_mesh_mutex.lock()
+	var result: Dictionary = _mesh_results.get(coord, {})
+	_mesh_results.erase(coord)
+	_mesh_mutex.unlock()
+	return result
+
+
+func _retire_mesh_task(coord: Vector2i) -> int:
+	var task_id: int = _mesh_tasks.get(coord, -1)
+	if task_id == -1:
+		return STEP_DONE
+	if not WorkerThreadPool.is_task_completed(task_id):
+		return STEP_BLOCKED
+	WorkerThreadPool.wait_for_task_completion(task_id)
+	_mesh_tasks.erase(coord)
+	return STEP_DONE
+
+
+func _flush_mesh_tasks() -> void:
+	for coord_variant: Variant in _mesh_tasks.keys():
+		WorkerThreadPool.wait_for_task_completion(int(_mesh_tasks[coord_variant]))
+	_mesh_tasks.clear()
+	_mesh_mutex.lock()
+	_mesh_results.clear()
+	_mesh_mutex.unlock()
 
 
 func _run_jobs(budget_usec: int) -> void:
@@ -458,14 +510,23 @@ func _job_step(job: Dictionary) -> int:
 		2:
 			_gen_step_edits(coord)
 			if _chebyshev(coord, _collision_center) <= COLLISION_DISTANCE:
-				_collided[coord] = true  # exposure pass will create colliders too
+				_collided[coord] = true
+			_dispatch_mesh(coord)
 			job["phase"] = 3
-			job["idx"] = 0
-			job["list"] = _build_exposure_list(coord)
 		3:
-			if _gen_step_exposure(job):
-				_loaded[coord] = true
-				return STEP_DONE
+			if _retire_mesh_task(coord) == STEP_BLOCKED:
+				return STEP_BLOCKED
+			var surface_data: Dictionary = _take_mesh_result(coord)
+			_apply_chunk_surface_data(coord, surface_data)
+			_loaded[coord] = true
+			# Only collision-window neighbors need immediate seam refreshes.
+			# Distant visual border faces can harmlessly overlap and disappear when
+			# either chunk is later rebuilt, avoiding four 17 ms remeshes per load.
+			for direction: Vector2i in CHUNK_NEIGHBOR_DIRS:
+				var neighbor: Vector2i = coord + direction
+				if _loaded.has(neighbor) and _collided.has(neighbor):
+					_rebuild_chunk(neighbor)
+			return STEP_DONE
 	return STEP_PROGRESS
 
 
@@ -544,72 +605,50 @@ func _gen_step_edits(coord: Vector2i) -> void:
 		if _chunk_of(pos) != coord:
 			continue
 		var type: String = _edits[pos]
-		if type.is_empty() or _block_types.has(pos):
-			continue
-		_block_types[pos] = type
-		chunk_dict[pos] = true
-
-
-func _build_exposure_list(coord: Vector2i) -> Array:
-	var list: Array = _chunk_blocks.get(coord, {}).keys()
-	# Border blocks of loaded neighbors may have just become buried (or newly
-	# open to air after an unload) — re-evaluate them too.
-	for dir in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-		var nc: Vector2i = coord + dir
-		if not _loaded.has(nc):
-			continue
-		# The neighbor-chunk column line that touches this chunk.
-		var edge_x: int = (nc.x * CHUNK_SIZE) if dir.x > 0 else (nc.x * CHUNK_SIZE + CHUNK_SIZE - 1)
-		var edge_z: int = (nc.y * CHUNK_SIZE) if dir.y > 0 else (nc.y * CHUNK_SIZE + CHUNK_SIZE - 1)
-		for pos_variant in _chunk_blocks.get(nc, {}).keys():
-			var pos: Vector3i = pos_variant
-			if dir.x != 0 and pos.x == edge_x:
-				list.append(pos)
-			elif dir.y != 0 and pos.z == edge_z:
-				list.append(pos)
-	return list
-
-
-func _gen_step_exposure(job: Dictionary) -> bool:
-	var list: Array = job["list"]
-	var idx: int = job["idx"]
-	var end: int = mini(idx + 256, list.size())
-	while idx < end and Time.get_ticks_usec() < _job_deadline_usec:
-		_update_exposure(list[idx])
-		idx += 1
-	job["idx"] = idx
-	return idx >= list.size()
+		if type.is_empty():
+			_block_types.erase(pos)
+			chunk_dict.erase(pos)
+		elif not _block_types.has(pos):
+			_block_types[pos] = type
+			chunk_dict[pos] = true
 
 
 func _unload_step(job: Dictionary, coord: Vector2i) -> bool:
 	match int(job["phase"]):
 		0:
+			_remove_chunk_mesh(coord)
+			_remove_chunk_collision(coord)
 			job["list"] = _chunk_blocks.get(coord, {}).keys()
 			job["phase"] = 1
 			job["idx"] = 0
 		1:
-			var list: Array = job["list"]
-			var idx: int = job["idx"]
-			var end: int = mini(idx + 256, list.size())
-			while idx < end and Time.get_ticks_usec() < _job_deadline_usec:
-				var pos: Vector3i = list[idx]
-				if _block_types.has(pos):
-					_hide_block(pos)
-					_block_types.erase(pos)
-				idx += 1
-			job["idx"] = idx
-			if idx >= list.size():
+			var blocks_to_remove: Array = job["list"]
+			var block_index: int = job["idx"]
+			var block_end: int = mini(block_index + 256, blocks_to_remove.size())
+			while block_index < block_end and Time.get_ticks_usec() < _job_deadline_usec:
+				_block_types.erase(blocks_to_remove[block_index])
+				block_index += 1
+			job["idx"] = block_index
+			if block_index >= blocks_to_remove.size():
 				_chunk_blocks.erase(coord)
 				_loaded.erase(coord)
 				_collided.erase(coord)
 				_evict_column_cache(coord)
-				job["list"] = _build_exposure_list(coord)  # neighbor borders only now
+				var rebuilds: Array[Vector2i] = []
+				for direction: Vector2i in CHUNK_NEIGHBOR_DIRS:
+					var neighbor: Vector2i = coord + direction
+					if _loaded.has(neighbor) and _collided.has(neighbor):
+						rebuilds.append(neighbor)
+				job["list"] = rebuilds
 				job["phase"] = 2
 				job["idx"] = 0
 		2:
-			# Walls of still-loaded neighbors are open to air again.
-			if _gen_step_exposure(job):
+			var rebuild_list: Array = job["list"]
+			var rebuild_index: int = job["idx"]
+			if rebuild_index >= rebuild_list.size():
 				return true
+			_rebuild_chunk(rebuild_list[rebuild_index])
+			job["idx"] = rebuild_index + 1
 	return false
 
 
@@ -786,102 +825,114 @@ func _tree_blocks(x: int, z: int, surface_y: int) -> Array:
 	return out
 
 
-# ------------------------- exposure (visuals + colliders) -------------------------
+# ------------------------- chunk meshes + collision -------------------------
 
-## A block is exposed if any face can be seen: up, the four sides, or below
-## (except the world's underside, which faces the void and is skipped).
-func _is_exposed(pos: Vector3i) -> bool:
-	if not _block_types.has(pos + Vector3i.UP):
-		return true
-	for n in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]:
-		if not _block_types.has(pos + n):
-			return true
-	var below: Vector3i = pos + Vector3i.DOWN
-	if _block_types.has(below):
-		return false
-	# Open below: only counts if it's above the generated world bottom
-	# (i.e. a real tunnel ceiling, not the chunk underside facing the void).
-	var bottom: int = _column_info(pos.x, pos.z)[0] - SURFACE_DEPTH
-	return below.y >= bottom
+func _rebuild_chunk(coord: Vector2i) -> void:
+	var input: Dictionary = _capture_mesh_input(coord)
+	var surface_data: Dictionary = VoxelChunkMesher.build(
+		coord,
+		input["blocks"] as Dictionary,
+		input["owned"] as Dictionary,
+		input["bottoms"] as Dictionary,
+		CHUNK_SIZE,
+		TYPE_GRASS,
+		TYPE_DIRT
+	)
+	_apply_chunk_surface_data(coord, surface_data)
 
 
-func _update_exposure(pos: Vector3i) -> void:
-	if not _block_types.has(pos):
+func _apply_chunk_surface_data(coord: Vector2i, surface_data: Dictionary) -> void:
+	_remove_chunk_collision(coord)
+	_remove_chunk_mesh(coord)
+	if surface_data.is_empty():
 		return
-	var exposed: bool = _is_exposed(pos)
-	var shown: bool = _block_body_idx.has(pos)
-	if exposed and not shown:
-		_show_block(pos)
-	elif not exposed and shown:
-		_hide_block(pos)
-
-
-func _create_collider(pos: Vector3i) -> void:
-	var collider: CollisionShape3D
-	if _collider_pool.is_empty():
-		collider = CollisionShape3D.new()
-		collider.shape = _shape
-		collider.position = Vector3(pos)
-		_collision_body.add_child(collider)
-	else:
-		collider = _collider_pool.pop_back()
-		collider.position = Vector3(pos)
-		collider.disabled = false
-	_block_colliders[pos] = collider
-
-
-func _free_collider(pos: Vector3i) -> void:
-	var collider: CollisionShape3D = _block_colliders.get(pos)
-	if collider != null and is_instance_valid(collider):
-		collider.disabled = true
-		_collider_pool.append(collider)
-	_block_colliders.erase(pos)
-
-
-func _show_block(pos: Vector3i) -> void:
-	var type: String = _block_types[pos]
-	if not _mm_inst.has(type):
+	var mesh: ArrayMesh = _array_mesh_from_surface_data(surface_data)
+	if mesh.get_surface_count() == 0:
 		return
-	var idx: int = _allocate_body_idx(type)
-	_mm_inst[type].multimesh.set_instance_transform(idx, Transform3D(Basis(), Vector3(pos)))
-	_block_body_idx[pos] = idx
-
-	if _collided.has(_chunk_of(pos)):
-		_create_collider(pos)
-
-	if type == TYPE_GRASS and _grass_top_mm != null:
-		var top_idx: int = _allocate_grass_top_idx()
-		var top_basis: Basis = Basis.from_euler(Vector3(-PI * 0.5, 0.0, 0.0))
-		var top_xform: Transform3D = Transform3D(top_basis, Vector3(pos) + Vector3(0.0, 0.501, 0.0))
-		_grass_top_mm.multimesh.set_instance_transform(top_idx, top_xform)
-		_block_top_idx[pos] = top_idx
+	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
+	mesh_instance.name = "Chunk_%d_%d" % [coord.x, coord.y]
+	mesh_instance.position = Vector3(coord.x * CHUNK_SIZE, 0.0, coord.y * CHUNK_SIZE)
+	mesh_instance.mesh = mesh
+	add_child(mesh_instance)
+	_chunk_meshes[coord] = mesh_instance
+	if _collided.has(coord):
+		_rebuild_chunk_collision(coord)
 
 
-func _hide_block(pos: Vector3i) -> void:
-	if not _block_body_idx.has(pos):
+func _array_mesh_from_surface_data(surface_data: Dictionary) -> ArrayMesh:
+	var mesh: ArrayMesh = ArrayMesh.new()
+	for render_key: String in ALL_BODY_TYPES:
+		if not surface_data.has(render_key) or not _materials.has(render_key):
+			continue
+		var data: Dictionary = surface_data[render_key] as Dictionary
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = PackedVector3Array(data["vertices"] as Array)
+		arrays[Mesh.ARRAY_NORMAL] = PackedVector3Array(data["normals"] as Array)
+		arrays[Mesh.ARRAY_TEX_UV] = PackedVector2Array(data["uvs"] as Array)
+		arrays[Mesh.ARRAY_INDEX] = PackedInt32Array(data["indices"] as Array)
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		mesh.surface_set_material(mesh.get_surface_count() - 1, _materials[render_key] as Material)
+	return mesh
+
+
+func _remove_chunk_mesh(coord: Vector2i) -> void:
+	var mesh_instance: MeshInstance3D = _chunk_meshes.get(coord) as MeshInstance3D
+	if mesh_instance != null and is_instance_valid(mesh_instance):
+		mesh_instance.queue_free()
+	_chunk_meshes.erase(coord)
+
+
+func _rebuild_chunk_collision(coord: Vector2i) -> void:
+	_remove_chunk_collision(coord)
+	if not _collided.has(coord):
 		return
-	var type: String = _block_types[pos]
-	var idx: int = _block_body_idx[pos]
-	var off: Transform3D = Transform3D(Basis(), OFFSCREEN)
-	_mm_inst[type].multimesh.set_instance_transform(idx, off)
-	(_mm_free[type] as Array).append(idx)
-	_block_body_idx.erase(pos)
+	var mesh_instance: MeshInstance3D = _chunk_meshes.get(coord) as MeshInstance3D
+	if mesh_instance == null or mesh_instance.mesh == null:
+		return
+	var shape: Shape3D = mesh_instance.mesh.create_trimesh_shape()
+	if shape == null:
+		return
+	var collision_shape: CollisionShape3D = CollisionShape3D.new()
+	collision_shape.name = "ChunkCollision_%d_%d" % [coord.x, coord.y]
+	collision_shape.position = mesh_instance.position
+	collision_shape.shape = shape
+	_collision_body.add_child(collision_shape)
+	_chunk_collision_shapes[coord] = collision_shape
 
-	_free_collider(pos)
 
-	if _block_top_idx.has(pos):
-		var top_idx: int = _block_top_idx[pos]
-		_grass_top_mm.multimesh.set_instance_transform(top_idx, off)
-		_grass_top_free.append(top_idx)
-		_block_top_idx.erase(pos)
+func _remove_chunk_collision(coord: Vector2i) -> void:
+	var collision_shape: CollisionShape3D = _chunk_collision_shapes.get(coord) as CollisionShape3D
+	if collision_shape != null and is_instance_valid(collision_shape):
+		collision_shape.queue_free()
+	_chunk_collision_shapes.erase(coord)
+
+
+func _rebuild_edited_chunks(pos: Vector3i) -> void:
+	for coord: Vector2i in _edited_chunk_coords(pos):
+		_rebuild_chunk(coord)
+
+
+func _edited_chunk_coords(pos: Vector3i) -> Array[Vector2i]:
+	var coord: Vector2i = _chunk_of(pos)
+	var rebuilds: Array[Vector2i] = [coord]
+	var local_x: int = pos.x - coord.x * CHUNK_SIZE
+	var local_z: int = pos.z - coord.y * CHUNK_SIZE
+	if local_x == 0 and _loaded.has(coord + Vector2i.LEFT):
+		rebuilds.append(coord + Vector2i.LEFT)
+	elif local_x == CHUNK_SIZE - 1 and _loaded.has(coord + Vector2i.RIGHT):
+		rebuilds.append(coord + Vector2i.RIGHT)
+	if local_z == 0 and _loaded.has(coord + Vector2i.UP):
+		rebuilds.append(coord + Vector2i.UP)
+	elif local_z == CHUNK_SIZE - 1 and _loaded.has(coord + Vector2i.DOWN):
+		rebuilds.append(coord + Vector2i.DOWN)
+	return rebuilds
 
 
 # ------------------------- public block API -------------------------
 
 func add_block(pos: Vector3i, type: String) -> bool:
-	if _block_types.has(pos):
-		return false
-	if not _mm_inst.has(type):
+	if _block_types.has(pos) or not ALL_BODY_TYPES.has(type):
 		return false
 	_edits[pos] = type
 	var coord: Vector2i = _chunk_of(pos)
@@ -889,9 +940,7 @@ func add_block(pos: Vector3i, type: String) -> bool:
 		return true  # applied when that chunk streams in
 	_block_types[pos] = type
 	_chunk_blocks.get_or_add(coord, {})[pos] = true
-	_update_exposure(pos)
-	for n in _neighbors(pos):
-		_update_exposure(n)
+	_rebuild_edited_chunks(pos)
 	return true
 
 
@@ -900,11 +949,9 @@ func remove_block(pos: Vector3i) -> String:
 		return ""
 	var type: String = _block_types[pos]
 	_edits[pos] = ""
-	_hide_block(pos)
 	_block_types.erase(pos)
 	_chunk_blocks.get_or_add(_chunk_of(pos), {}).erase(pos)
-	for n in _neighbors(pos):
-		_update_exposure(n)
+	_rebuild_edited_chunks(pos)
 	return type
 
 
@@ -1038,6 +1085,7 @@ func apply_block_snapshot(snapshot: Array) -> void:
 	for coord_variant in coords:
 		_unload_chunk_sync(coord_variant)
 	_flush_gen_tasks()  # stale worker results would resurrect old terrain
+	_flush_mesh_tasks()
 	_job_queue.clear()
 	_queued.clear()
 	var center: Vector2i = Vector2i.ZERO
@@ -1068,84 +1116,29 @@ func _unload_chunk_sync(coord: Vector2i) -> void:
 		pass
 
 
-# ------------------------- rendering pools -------------------------
+# ------------------------- render resources -------------------------
 
 func _build_resources() -> void:
-	_shape = BoxShape3D.new()
-	_shape.size = Vector3.ONE
-
 	_collision_body = StaticBody3D.new()
 	_collision_body.name = "WorldCollision"
 	add_child(_collision_body)
-
-	for t in ALL_BODY_TYPES:
-		var tex: Texture2D = _texture_for_body(t)
-		var mmi: MultiMeshInstance3D = _build_box_mm(t, tex, int(INITIAL_CAPACITY[t]))
-		if mmi != null:
-			add_child(mmi)
-			_mm_inst[t] = mmi
-			_mm_used[t] = 0
-			_mm_free[t] = []
-
-	_grass_top_mm = _build_grass_top_mm(GRASS_TOP_CAPACITY)
-	if _grass_top_mm != null:
-		add_child(_grass_top_mm)
+	for block_type: String in ALL_BODY_TYPES:
+		var texture: Texture2D = _texture_for_render_key(block_type)
+		if texture == null:
+			continue
+		var material: StandardMaterial3D = StandardMaterial3D.new()
+		material.albedo_texture = texture
+		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		material.texture_repeat = true
+		_materials[block_type] = material
 
 
-func _build_box_mm(type: String, tex: Texture2D, capacity: int) -> MultiMeshInstance3D:
-	if tex == null:
-		return null
-	var box: BoxMesh = BoxMesh.new()
-	box.size = Vector3.ONE
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_texture = tex
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	box.material = mat
-
-	var mm: MultiMesh = MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = box
-	mm.instance_count = capacity
-	_initialize_offscreen(mm, 0, capacity)
-
-	var mmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
-	mmi.name = "MM_" + type
-	mmi.multimesh = mm
-	return mmi
-
-
-func _build_grass_top_mm(capacity: int) -> MultiMeshInstance3D:
-	if grass_top_texture == null:
-		return null
-	var quad: QuadMesh = QuadMesh.new()
-	quad.size = Vector2.ONE
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_texture = grass_top_texture
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	quad.material = mat
-
-	var mm: MultiMesh = MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = quad
-	mm.instance_count = capacity
-	_initialize_offscreen(mm, 0, capacity)
-
-	var mmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
-	mmi.name = "MM_grass_top"
-	mmi.multimesh = mm
-	return mmi
-
-
-func _initialize_offscreen(mm: MultiMesh, start: int, end: int) -> void:
-	var off: Transform3D = Transform3D(Basis(), OFFSCREEN)
-	for i in range(start, end):
-		mm.set_instance_transform(i, off)
-
-
-func _texture_for_body(type: String) -> Texture2D:
+func _texture_for_render_key(type: String) -> Texture2D:
 	match type:
-		TYPE_DIRT, TYPE_GRASS:
+		TYPE_DIRT:
 			return dirt_texture
+		TYPE_GRASS:
+			return grass_top_texture
 		TYPE_COBBLE:
 			return cobble_texture
 		TYPE_WOOD:
@@ -1157,52 +1150,11 @@ func _texture_for_body(type: String) -> Texture2D:
 	return null
 
 
-func _allocate_body_idx(type: String) -> int:
-	var free_arr: Array = _mm_free[type]
-	if not free_arr.is_empty():
-		return free_arr.pop_back()
-	var idx: int = _mm_used[type]
-	var mm: MultiMesh = _mm_inst[type].multimesh
-	if idx >= mm.instance_count:
-		_grow_multimesh(mm)
-	_mm_used[type] = idx + 1
-	return idx
+func get_collision_shape_count() -> int:
+	return _chunk_collision_shapes.size()
 
 
-## Grows a MultiMesh pool while PRESERVING existing instance transforms.
-## (Setting instance_count alone wipes the whole transform buffer.)
-## Grows geometrically so growth events get rarer as the world gets bigger,
-## and fills the new tail with raw buffer writes instead of a
-## set_instance_transform loop — that loop caused a visible hitch per growth.
-func _grow_multimesh(mm: MultiMesh) -> void:
-	var old_count: int = mm.instance_count
-	var new_cap: int = maxi(old_count * 2, old_count + POOL_GROW_STEP)
-	var buf: PackedFloat32Array = mm.buffer
-	const FLOATS_PER_INSTANCE: int = 12  # TRANSFORM_3D, no colors/custom data
-	if buf.size() == old_count * FLOATS_PER_INSTANCE and not buf.is_empty():
-		buf.resize(new_cap * FLOATS_PER_INSTANCE)
-		for i in range(old_count, new_cap):
-			var base: int = i * FLOATS_PER_INSTANCE
-			buf[base] = 1.0  # identity basis, offscreen origin
-			buf[base + 3] = OFFSCREEN.x
-			buf[base + 5] = 1.0
-			buf[base + 7] = OFFSCREEN.y
-			buf[base + 10] = 1.0
-			buf[base + 11] = OFFSCREEN.z
-		mm.instance_count = new_cap
-		mm.buffer = buf
-	else:
-		# Headless/dummy renderer: no buffer readback, nothing visual to keep.
-		mm.instance_count = new_cap
-		_initialize_offscreen(mm, old_count, new_cap)
-
-
-func _allocate_grass_top_idx() -> int:
-	if not _grass_top_free.is_empty():
-		return _grass_top_free.pop_back()
-	var idx: int = _grass_top_used
-	var mm: MultiMesh = _grass_top_mm.multimesh
-	if idx >= mm.instance_count:
-		_grow_multimesh(mm)
-	_grass_top_used = idx + 1
-	return idx
+func is_collision_ready_at(world_position: Vector3) -> bool:
+	var coord: Vector2i = _chunk_of_xz(
+		int(floor(world_position.x)), int(floor(world_position.z)))
+	return _loaded.has(coord) and _chunk_collision_shapes.has(coord)

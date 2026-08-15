@@ -84,3 +84,26 @@ func test_animal_spawn_rejects_generated_tree_columns() -> void:
 		if tree_found:
 			break
 	assert(tree_found)
+
+
+func test_interior_edit_rebuilds_only_own_chunk() -> void:
+	var world: World = _world_for_seed(1337)
+	world._loaded[Vector2i.ZERO] = true
+	var rebuilds: Array[Vector2i] = world._edited_chunk_coords(Vector3i(7, 3, 7))
+	assert(rebuilds == [Vector2i.ZERO])
+
+
+func test_border_edit_rebuilds_loaded_neighbor() -> void:
+	var world: World = _world_for_seed(1337)
+	world._loaded[Vector2i.ZERO] = true
+	world._loaded[Vector2i.RIGHT] = true
+	var rebuilds: Array[Vector2i] = world._edited_chunk_coords(Vector3i(15, 3, 7))
+	assert(rebuilds == [Vector2i.ZERO, Vector2i.RIGHT])
+
+
+func test_negative_border_edit_uses_floor_chunk_coordinates() -> void:
+	var world: World = _world_for_seed(1337)
+	world._loaded[Vector2i(-1, 0)] = true
+	world._loaded[Vector2i.ZERO] = true
+	var rebuilds: Array[Vector2i] = world._edited_chunk_coords(Vector3i(-1, 3, 7))
+	assert(rebuilds == [Vector2i(-1, 0), Vector2i.ZERO])

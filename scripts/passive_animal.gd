@@ -8,6 +8,7 @@ const HIT_FLASH_SEC: float = 0.15
 const KNOCKBACK_SPEED: float = 3.0
 const WANDER_MIN_SEC: float = 2.5
 const WANDER_MAX_SEC: float = 6.0
+const MID_SIM_INTERVAL: float = AnimalLodPolicy.MID_SIM_INTERVAL
 
 @export var animal_group: StringName = &"animal"
 @export var walk_speed: float = 1.0
@@ -23,6 +24,11 @@ var _walk_phase: float = 0.0
 var _health: int = 1
 var _hit_flash_time: float = 0.0
 var _dead: bool = false
+var _player: Node3D
+var _world: World
+var _lod_accum: float = 0.0
+var _full_animation: bool = true
+var _far_sleeping: bool = false
 
 @onready var _model: Node3D = $Model
 @onready var _front_left_leg: MeshInstance3D = $Model/FrontLeftLeg
@@ -45,27 +51,70 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if _dead:
 		return
+	var simulation_delta: float = _lod_simulation_delta(delta)
+	if simulation_delta <= 0.0:
+		return
+	var movement_scale: float = simulation_delta / delta
 	if not is_on_floor():
-		velocity.y -= GRAVITY * delta
+		velocity.y -= GRAVITY * simulation_delta
 	else:
 		velocity.y = 0.0
 
-	_wander_time_left -= delta
+	_wander_time_left -= simulation_delta
 	if _wander_time_left <= 0.0:
 		_pick_new_wander_dir()
 
 	if _hit_flash_time <= 0.0:
-		velocity.x = _wander_dir.x * walk_speed
-		velocity.z = _wander_dir.z * walk_speed
+		velocity.x = _wander_dir.x * walk_speed * movement_scale
+		velocity.z = _wander_dir.z * walk_speed * movement_scale
 		if _wander_dir.length() > 0.01:
 			look_at(global_position + _wander_dir, Vector3.UP)
 	move_and_slide()
-	_animate_model(delta)
+	if _full_animation:
+		_animate_model(delta)
 
 	if _hit_flash_time > 0.0:
-		_hit_flash_time = max(0.0, _hit_flash_time - delta)
+		_hit_flash_time = max(0.0, _hit_flash_time - simulation_delta)
 		if _hit_flash_time == 0.0:
 			_restore_material_colors()
+
+
+func _lod_simulation_delta(delta: float) -> float:
+	if _player == null or not is_instance_valid(_player):
+		_player = get_tree().get_first_node_in_group(&"player") as Node3D
+	var distance_sq: float = 0.0 if _player == null else global_position.distance_squared_to(_player.global_position)
+	var tier: int = AnimalLodPolicy.tier_for_distance_squared(distance_sq)
+	if tier == AnimalLodPolicy.Tier.SLEEPING or not _terrain_collision_ready():
+		_set_far_sleeping(true)
+		_lod_accum = 0.0
+		return 0.0
+	_set_far_sleeping(false)
+	if tier == AnimalLodPolicy.Tier.THROTTLED:
+		_full_animation = false
+		_lod_accum += delta
+		if _lod_accum < MID_SIM_INTERVAL:
+			return 0.0
+		var accumulated: float = _lod_accum
+		_lod_accum = 0.0
+		return accumulated
+	_full_animation = true
+	_lod_accum = 0.0
+	return delta
+
+
+func _terrain_collision_ready() -> bool:
+	if _world == null or not is_instance_valid(_world):
+		_world = get_tree().get_first_node_in_group(&"world") as World
+	return _world == null or _world.is_collision_ready_at(global_position)
+
+
+func _set_far_sleeping(sleeping: bool) -> void:
+	if _far_sleeping == sleeping:
+		return
+	_far_sleeping = sleeping
+	_model.visible = not sleeping
+	if sleeping:
+		velocity = Vector3.ZERO
 
 
 func _pick_new_wander_dir() -> void:
@@ -94,24 +143,15 @@ func take_damage(amount: int = 1) -> void:
 
 
 func _cache_model_materials() -> void:
-	var material_copies: Dictionary = {}
-	for child: Node in _model.find_children("*", "MeshInstance3D", true, false):
-		var part: MeshInstance3D = child as MeshInstance3D
-		var source_mesh: PrimitiveMesh = part.mesh as PrimitiveMesh
-		if source_mesh == null or not source_mesh.material is StandardMaterial3D:
-			continue
-		var mesh_copy: PrimitiveMesh = source_mesh.duplicate() as PrimitiveMesh
-		var source_material: StandardMaterial3D = source_mesh.material as StandardMaterial3D
-		var material: StandardMaterial3D
-		if material_copies.has(source_material):
-			material = material_copies[source_material] as StandardMaterial3D
-		else:
-			material = source_material.duplicate() as StandardMaterial3D
-			material_copies[source_material] = material
-			_materials.append(material)
-			_material_base_colors[material] = material.albedo_color
-		mesh_copy.material = material
-		part.mesh = mesh_copy
+	var animated_roots: Array[MeshInstance3D] = [
+		_front_left_leg, _front_right_leg, _back_left_leg, _back_right_leg,
+	]
+	if _tail != null:
+		animated_roots.append(_tail)
+	_materials = AnimalMeshBatcher.optimize(_model, animated_roots)
+	_material_base_colors.clear()
+	for material: StandardMaterial3D in _materials:
+		_material_base_colors[material] = material.albedo_color
 
 
 func _animate_model(delta: float) -> void:

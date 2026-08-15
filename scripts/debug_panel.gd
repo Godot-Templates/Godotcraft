@@ -102,8 +102,8 @@ func _refresh() -> void:
 		lines.append("Chunks loaded: %d  (queued: %d)" % [
 			_world._loaded.size(), _world._job_queue.size(),
 		])
-		lines.append("Blocks: %d  (colliders: %d)" % [
-			_world._block_types.size(), _world._block_colliders.size(),
+		lines.append("Blocks: %d  (chunk colliders: %d)" % [
+			_world._block_types.size(), _world.get_collision_shape_count(),
 		])
 
 	lines.append("")

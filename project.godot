@@ -17,6 +17,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 config/name="ziva-agent-v2"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
+run/max_fps="120"
 
 [autoload]
 
@@ -27,6 +28,7 @@ SceneTransition="*res://scripts/scene_transition.gd"
 [display]
 
 window/dpi/allow_hidpi=false
+window/vsync/vsync_mode="0"
 
 [editor_plugins]
 

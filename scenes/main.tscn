@@ -97,6 +97,8 @@ light_color = Color(0.7, 0.78, 1, 1)
 light_energy = 0.55
 shadow_enabled = true
 shadow_blur = 2.5
+directional_shadow_mode = 1
+directional_shadow_max_distance = 64.0
 
 [node name="DayNightCycle" type="Node" parent="." unique_id=1982615491]
 script = ExtResource("14_daynight")
