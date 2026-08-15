@@ -90,15 +90,8 @@ func _scale_button(button: Button, target: Vector2, duration: float = 0.18) -> v
 func _on_play_pressed() -> void:
 	_play_button.disabled = true
 	_quit_button.disabled = true
-	# Quick fade-out before switching scenes.
-	var fade: ColorRect = $UI/Fade
-	fade.visible = true
-	fade.modulate.a = 0.0
-	var tween: Tween = create_tween()
-	tween.tween_property(fade, "modulate:a", 1.0, 0.45) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	await tween.finished
-	get_tree().change_scene_to_file(MAIN_SCENE)
+	var transition: SceneTransitionManager = get_node("/root/SceneTransition") as SceneTransitionManager
+	transition.transition_to(MAIN_SCENE)
 
 
 func _on_quit_pressed() -> void:

@@ -22,6 +22,7 @@ config/features=PackedStringArray("4.7", "Mobile")
 
 MpManager="*res://scripts/multiplayer_manager.gd"
 GameSettingsMenu="*res://scripts/settings_menu.gd"
+SceneTransition="*res://scripts/scene_transition.gd"
 
 [display]
 
