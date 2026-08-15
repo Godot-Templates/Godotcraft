@@ -22,13 +22,10 @@ func _ready() -> void:
 
 
 func _spawn_one() -> void:
-    var angle: float = randf_range(0.0, TAU)
-    var r: float = randf_range(float(spawn_min_radius), float(spawn_max_radius))
-    var x: int = int(round(cos(angle) * r))
-    var z: int = int(round(sin(angle) * r))
-    var y: int = _world.get_surface_y(x, z)
-
+    var spawn: Dictionary = _world.find_safe_animal_spawn(spawn_min_radius, spawn_max_radius)
+    if spawn.is_empty():
+        return
     var chicken: Node3D = chicken_scene.instantiate()
     var parent: Node = get_tree().current_scene if get_tree().current_scene != null else get_parent()
     parent.add_child(chicken)
-    chicken.global_position = Vector3(float(x) + 0.5, float(y) + 0.1, float(z) + 0.5)
+    chicken.global_position = spawn["position"] as Vector3

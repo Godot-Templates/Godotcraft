@@ -67,3 +67,20 @@ func test_caves_exist_but_keep_roof_and_bottom_solid() -> void:
 				if world._is_cave(x, surface_y - depth, z, surface_y):
 					cave_cells += 1
 	assert(cave_cells > 30)
+
+
+func test_animal_spawn_rejects_generated_tree_columns() -> void:
+	var world: World = _world_for_seed(1337)
+	var cache: Dictionary = {}
+	var tree_found: bool = false
+	for x in range(-64, 65):
+		for z in range(-64, 65):
+			if not world._tree_at(x, z, cache):
+				continue
+			tree_found = true
+			assert(not world.is_safe_animal_spawn(x, z))
+			assert(world.get_ground_surface_y(x, z) == world._column_info(x, z)[0] + 1)
+			break
+		if tree_found:
+			break
+	assert(tree_found)

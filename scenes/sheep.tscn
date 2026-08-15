@@ -1,0 +1,120 @@
+[gd_scene format=3 uid="uid://coskte270eebo"]
+
+[ext_resource type="Script" uid="uid://b1l7ahbf4rm7l" path="res://scripts/sheep.gd" id="1"]
+
+[sub_resource type="BoxShape3D" id="Collider"]
+size = Vector3(1.05, 1.4, 1.65)
+
+[sub_resource type="StandardMaterial3D" id="Wool"]
+resource_local_to_scene = true
+albedo_color = Color(0.91, 0.9, 0.82, 1)
+
+[sub_resource type="BoxMesh" id="Body"]
+material = SubResource("Wool")
+size = Vector3(1.05, 0.92, 1.5)
+
+[sub_resource type="StandardMaterial3D" id="Face"]
+resource_local_to_scene = true
+albedo_color = Color(0.25, 0.22, 0.2, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="Head"]
+material = SubResource("Face")
+size = Vector3(0.68, 0.72, 0.58)
+
+[sub_resource type="BoxMesh" id="Cap"]
+material = SubResource("Wool")
+size = Vector3(0.72, 0.28, 0.5)
+
+[sub_resource type="BoxMesh" id="Ear"]
+material = SubResource("Face")
+size = Vector3(0.28, 0.14, 0.2)
+
+[sub_resource type="StandardMaterial3D" id="Dark"]
+resource_local_to_scene = true
+albedo_color = Color(0.02, 0.018, 0.016, 1)
+
+[sub_resource type="BoxMesh" id="Eye"]
+material = SubResource("Dark")
+size = Vector3(0.08, 0.09, 0.05)
+
+[sub_resource type="BoxMesh" id="Leg"]
+material = SubResource("Face")
+size = Vector3(0.22, 0.65, 0.24)
+
+[sub_resource type="BoxMesh" id="Hoof"]
+material = SubResource("Dark")
+size = Vector3(0.25, 0.16, 0.28)
+
+[node name="Sheep" type="CharacterBody3D" unique_id=327842995]
+script = ExtResource("1")
+animal_group = &"sheep"
+walk_speed = 0.85
+max_health = 6
+walk_cycle_speed = 6.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=271109230]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
+shape = SubResource("Collider")
+
+[node name="Model" type="Node3D" parent="." unique_id=1576012296]
+
+[node name="Body" type="MeshInstance3D" parent="Model" unique_id=1122776886]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0.12)
+mesh = SubResource("Body")
+
+[node name="Head" type="MeshInstance3D" parent="Model" unique_id=782509022]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, -0.88)
+mesh = SubResource("Head")
+
+[node name="WoolCap" type="MeshInstance3D" parent="Model" unique_id=100539775]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, -0.84)
+mesh = SubResource("Cap")
+
+[node name="LeftEar" type="MeshInstance3D" parent="Model" unique_id=1929786470]
+transform = Transform3D(0.9800666, -0.19866933, 0, 0.19866933, 0.9800666, 0, 0, 0, 1, -0.43, 1.16, -0.84)
+mesh = SubResource("Ear")
+
+[node name="RightEar" type="MeshInstance3D" parent="Model" unique_id=1879700980]
+transform = Transform3D(0.9800666, 0.19866933, 0, -0.19866933, 0.9800666, 0, 0, 0, 1, 0.43, 1.16, -0.84)
+mesh = SubResource("Ear")
+
+[node name="LeftEye" type="MeshInstance3D" parent="Model" unique_id=420324108]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 1.15, -1.185)
+mesh = SubResource("Eye")
+
+[node name="RightEye" type="MeshInstance3D" parent="Model" unique_id=1627969357]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 1.15, -1.185)
+mesh = SubResource("Eye")
+
+[node name="FrontLeftLeg" type="MeshInstance3D" parent="Model" unique_id=74781631]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.34, 0.38, -0.38)
+mesh = SubResource("Leg")
+
+[node name="Hoof" type="MeshInstance3D" parent="Model/FrontLeftLeg" unique_id=1354205397]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.36, -0.02)
+mesh = SubResource("Hoof")
+
+[node name="FrontRightLeg" type="MeshInstance3D" parent="Model" unique_id=163862628]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.34, 0.38, -0.38)
+mesh = SubResource("Leg")
+
+[node name="Hoof" type="MeshInstance3D" parent="Model/FrontRightLeg" unique_id=1387646221]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.36, -0.02)
+mesh = SubResource("Hoof")
+
+[node name="BackLeftLeg" type="MeshInstance3D" parent="Model" unique_id=1433090153]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.34, 0.38, 0.62)
+mesh = SubResource("Leg")
+
+[node name="Hoof" type="MeshInstance3D" parent="Model/BackLeftLeg" unique_id=955543768]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.36, -0.02)
+mesh = SubResource("Hoof")
+
+[node name="BackRightLeg" type="MeshInstance3D" parent="Model" unique_id=1020521528]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.34, 0.38, 0.62)
+mesh = SubResource("Leg")
+
+[node name="Hoof" type="MeshInstance3D" parent="Model/BackRightLeg" unique_id=996675067]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.36, -0.02)
+mesh = SubResource("Hoof")

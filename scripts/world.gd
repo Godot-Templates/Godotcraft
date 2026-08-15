@@ -940,7 +940,59 @@ func get_surface_y(x: int, z: int) -> int:
 	for y in range(64, -48, -1):
 		if has_block(Vector3i(x, y, z)):
 			return y + 1
+	return get_ground_surface_y(x, z)
+
+
+## Natural terrain surface, intentionally ignoring tree trunks and leaves.
+func get_ground_surface_y(x: int, z: int) -> int:
 	return _column_info(x, z)[0] + 1
+
+
+## True when an animal can stand here without intersecting a generated or loaded tree.
+## The pure generation check also works before an outer chunk finishes streaming.
+func is_safe_animal_spawn(x: int, z: int, horizontal_clearance: int = 1) -> bool:
+	var ground_y: int = get_ground_surface_y(x, z)
+	for offset_x: int in range(-horizontal_clearance, horizontal_clearance + 1):
+		for offset_z: int in range(-horizontal_clearance, horizontal_clearance + 1):
+			var check_x: int = x + offset_x
+			var check_z: int = z + offset_z
+			if _generated_tree_occupies_column(check_x, check_z):
+				return false
+			for check_y: int in range(ground_y, ground_y + 8):
+				var block_type: String = get_block_type(Vector3i(check_x, check_y, check_z))
+				if block_type == TYPE_WOOD or block_type == TYPE_LEAVES:
+					return false
+	return true
+
+
+func _generated_tree_occupies_column(x: int, z: int) -> bool:
+	var cache: Dictionary = {}
+	for root_x: int in range(x - 2, x + 3):
+		for root_z: int in range(z - 2, z + 3):
+			if not _tree_at(root_x, root_z, cache):
+				continue
+			var root_surface_y: int = _column_info_cached(root_x, root_z, cache)[0]
+			for entry: Array in _tree_blocks(root_x, root_z, root_surface_y):
+				var block_pos: Vector3i = entry[0]
+				if block_pos.x == x and block_pos.z == z:
+					return true
+	return false
+
+
+## Tries several random points and returns an empty dictionary if none are tree-safe.
+func find_safe_animal_spawn(
+	min_radius: int, max_radius: int, max_attempts: int = 32
+) -> Dictionary:
+	for attempt: int in max_attempts:
+		var angle: float = randf_range(0.0, TAU)
+		var radius: float = randf_range(float(min_radius), float(max_radius))
+		var x: int = int(round(cos(angle) * radius))
+		var z: int = int(round(sin(angle) * radius))
+		if not is_safe_animal_spawn(x, z):
+			continue
+		var y: int = get_ground_surface_y(x, z)
+		return {"position": Vector3(float(x) + 0.5, float(y) + 0.1, float(z) + 0.5)}
+	return {}
 
 
 # ------------------------- multiplayer sync -------------------------

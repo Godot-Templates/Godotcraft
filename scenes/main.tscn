@@ -17,7 +17,11 @@
 [ext_resource type="PackedScene" uid="uid://8sm2nh8v5aa6" path="res://scenes/debug_panel.tscn" id="15_debug"]
 [ext_resource type="Script" uid="uid://cfncaqp65mrhg" path="res://scripts/weather.gd" id="16_weather"]
 [ext_resource type="Script" uid="uid://bds2t7b87nq5n" path="res://scripts/chicken_spawner.gd" id="17_chicken_spawner"]
-[ext_resource type="Script" path="res://scripts/cow_spawner.gd" id="18_cow_spawner"]
+[ext_resource type="Script" uid="uid://bq87ltlufqped" path="res://scripts/cow_spawner.gd" id="18_cow_spawner"]
+[ext_resource type="Script" uid="uid://bjv2byjawbsjl" path="res://scripts/passive_animal_spawner.gd" id="19_animal_spawner"]
+[ext_resource type="PackedScene" uid="uid://dode3332cm63r" path="res://scenes/pig.tscn" id="20_pig"]
+[ext_resource type="PackedScene" uid="uid://coskte270eebo" path="res://scenes/sheep.tscn" id="21_sheep"]
+[ext_resource type="PackedScene" uid="uid://b11mdlqik1vf1" path="res://scenes/cat.tscn" id="22_cat"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_top_color = Color(0.06, 0.05, 0.22, 1)
@@ -158,9 +162,29 @@ script = ExtResource("16_weather")
 script = ExtResource("17_chicken_spawner")
 world_path = NodePath("../World")
 
-[node name="CowSpawner" type="Node3D" parent="."]
+[node name="CowSpawner" type="Node3D" parent="." unique_id=1272669779]
 script = ExtResource("18_cow_spawner")
 world_path = NodePath("../World")
+
+[node name="PigSpawner" type="Node3D" parent="." unique_id=396097920]
+script = ExtResource("19_animal_spawner")
+world_path = NodePath("../World")
+animal_scene = ExtResource("20_pig")
+spawn_max_radius = 18
+
+[node name="SheepSpawner" type="Node3D" parent="." unique_id=1541393509]
+script = ExtResource("19_animal_spawner")
+world_path = NodePath("../World")
+animal_scene = ExtResource("21_sheep")
+spawn_min_radius = 10
+
+[node name="CatSpawner" type="Node3D" parent="." unique_id=1749778938]
+script = ExtResource("19_animal_spawner")
+world_path = NodePath("../World")
+animal_scene = ExtResource("22_cat")
+spawn_count = 2
+spawn_min_radius = 5
+spawn_max_radius = 14
 
 [node name="HUD" parent="." unique_id=444951439 instance=ExtResource("9_hud")]
 dirt_texture = ExtResource("3_dirt")
