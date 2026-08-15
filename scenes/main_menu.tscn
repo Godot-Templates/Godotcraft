@@ -1,0 +1,193 @@
+[gd_scene format=3 uid="uid://bdvd7js6k44bb"]
+
+[ext_resource type="Script" uid="uid://cbmnb83mga445" path="res://scripts/main_menu.gd" id="1_menu"]
+[ext_resource type="Script" uid="uid://bw7rd1ogkv31w" path="res://scripts/world.gd" id="2_world"]
+[ext_resource type="Texture2D" uid="uid://de38g8kwehcw8" path="res://assets/generated/dirt_frame_0.png" id="3_dirt"]
+[ext_resource type="Texture2D" uid="uid://3bygmtfoqf6a" path="res://assets/generated/grass_top_frame_0.png" id="4_grass"]
+[ext_resource type="Texture2D" uid="uid://kbjajdu3h6b0" path="res://assets/generated/cobblestone_frame_0.png" id="5_cobble"]
+[ext_resource type="Texture2D" uid="uid://c68jqejpadxsx" path="res://assets/generated/wood_frame_0.png" id="6_wood"]
+[ext_resource type="Texture2D" uid="uid://co3fxxf1ehitk" path="res://assets/generated/leaves_frame_0.png" id="7_leaves"]
+[ext_resource type="Texture2D" uid="uid://5ybo7vdslnm1" path="res://assets/generated/sand_frame_0.png" id="8_sand"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat_1"]
+sky_top_color = Color(0.06, 0.05, 0.22, 1)
+sky_horizon_color = Color(0.32, 0.26, 0.58, 1)
+ground_bottom_color = Color(0.14, 0.13, 0.28, 1)
+ground_horizon_color = Color(0.2, 0.18, 0.38, 1)
+ground_curve = 0.15
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("SkyMat_1")
+
+[sub_resource type="Environment" id="Env_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+ambient_light_source = 2
+ambient_light_color = Color(0.55, 0.62, 0.95, 1)
+ambient_light_sky_contribution = 0.35
+ambient_light_energy = 1.4
+tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.55
+glow_bloom = 0.18
+fog_enabled = true
+fog_light_color = Color(0.42, 0.38, 0.78, 1)
+fog_light_energy = 1.1
+fog_sun_scatter = 0.15
+fog_density = 0.012
+fog_aerial_perspective = 0.5
+fog_sky_affect = 0.4
+
+[sub_resource type="StyleBoxFlat" id="PanelStyle_1"]
+content_margin_left = 40.0
+content_margin_top = 32.0
+content_margin_right = 40.0
+content_margin_bottom = 32.0
+bg_color = Color(0.05, 0.04, 0.12, 0.55)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="LabelSettings" id="TitleSettings_1"]
+font_size = 64
+font_color = Color(0.95, 0.93, 1, 1)
+outline_size = 10
+outline_color = Color(0.2, 0.15, 0.45, 1)
+shadow_size = 8
+shadow_color = Color(0, 0, 0, 0.4)
+shadow_offset = Vector2(0, 4)
+
+[sub_resource type="StyleBoxFlat" id="BtnNormal_1"]
+content_margin_left = 24.0
+content_margin_top = 12.0
+content_margin_right = 24.0
+content_margin_bottom = 12.0
+bg_color = Color(0.16, 0.14, 0.32, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.45, 0.4, 0.8, 0.6)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="BtnPressed_1"]
+content_margin_left = 24.0
+content_margin_top = 12.0
+content_margin_right = 24.0
+content_margin_bottom = 12.0
+bg_color = Color(0.1, 0.09, 0.22, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.5, 0.45, 0.85, 0.8)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="BtnHover_1"]
+content_margin_left = 24.0
+content_margin_top = 12.0
+content_margin_right = 24.0
+content_margin_bottom = 12.0
+bg_color = Color(0.24, 0.21, 0.46, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.65, 0.6, 1, 0.9)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[node name="MainMenu" type="Node3D" unique_id=647547191]
+script = ExtResource("1_menu")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1581230359]
+environment = SubResource("Env_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=723579602]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 30, 0)
+light_color = Color(1, 0.92, 0.78, 1)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="World" type="Node3D" parent="." unique_id=1375964446]
+script = ExtResource("2_world")
+dirt_texture = ExtResource("3_dirt")
+grass_top_texture = ExtResource("4_grass")
+cobble_texture = ExtResource("5_cobble")
+wood_texture = ExtResource("6_wood")
+leaves_texture = ExtResource("7_leaves")
+sand_texture = ExtResource("8_sand")
+
+[node name="CameraAnchor" type="Node3D" parent="." unique_id=21502645 groups=["player"]]
+
+[node name="Pivot" type="Node3D" parent="CameraAnchor" unique_id=1322045323]
+
+[node name="Camera3D" type="Camera3D" parent="CameraAnchor/Pivot" unique_id=353162132]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 20, 30)
+current = true
+far = 300.0
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=138781435]
+
+[node name="Center" type="CenterContainer" parent="UI" unique_id=1482475320]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="UI/Center" unique_id=270203563]
+layout_mode = 2
+theme_override_styles/panel = SubResource("PanelStyle_1")
+
+[node name="VBox" type="VBoxContainer" parent="UI/Center/Panel" unique_id=537738186]
+layout_mode = 2
+theme_override_constants/separation = 18
+alignment = 1
+
+[node name="Title" type="Label" parent="UI/Center/Panel/VBox" unique_id=922361284]
+layout_mode = 2
+text = "GODOTCRAFT"
+label_settings = SubResource("TitleSettings_1")
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="UI/Center/Panel/VBox" unique_id=1853771138]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+
+[node name="PlayButton" type="Button" parent="UI/Center/Panel/VBox" unique_id=523975460]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("BtnNormal_1")
+theme_override_styles/pressed = SubResource("BtnPressed_1")
+theme_override_styles/hover = SubResource("BtnHover_1")
+text = "Play"
+
+[node name="QuitButton" type="Button" parent="UI/Center/Panel/VBox" unique_id=489984728]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("BtnNormal_1")
+theme_override_styles/pressed = SubResource("BtnPressed_1")
+theme_override_styles/hover = SubResource("BtnHover_1")
+text = "Quit"
+
+[node name="Fade" type="ColorRect" parent="UI" unique_id=1265821933]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 1)
