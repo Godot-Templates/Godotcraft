@@ -16,6 +16,8 @@ const FP_CAMERA_OFFSET: Vector3 = Vector3.ZERO
 const TP_CAMERA_OFFSET: Vector3 = Vector3(0.0, 0.4, 3.5)
 
 const MAX_REACH: float = 4.0
+const RUNTIME_MODE_SETTING: String = "game/runtime_mode"
+const MODE_CREATIVE: String = "creative"
 
 const STEP_FREQUENCY: float = 1.4
 const SWING_AMP: float = deg_to_rad(35.0)
@@ -109,6 +111,7 @@ var _w_last_release_time: float = -10.0
 var _sprint_active: bool = false
 var _crouching: bool = false
 var _flying: bool = false
+var _creative_mode: bool = false
 var _space_was_pressed: bool = false
 var _space_last_release_time: float = -10.0
 var _crouch_pose_blend: float = 0.0
@@ -143,6 +146,9 @@ var _right_hip_rest_position: Vector3 = Vector3.ZERO
 func _ready() -> void:
 	add_to_group("player")
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	var runtime_mode: String = String(ProjectSettings.get_setting(
+		RUNTIME_MODE_SETTING, "survival"))
+	set_creative_mode(runtime_mode == MODE_CREATIVE)
 	if block_highlight_path != NodePath(""):
 		_block_highlight = get_node_or_null(block_highlight_path)
 		if _block_highlight != null:
@@ -428,6 +434,25 @@ func is_flying() -> bool:
 	return _flying
 
 
+func set_creative_mode(enabled: bool) -> void:
+	_creative_mode = enabled
+	if _creative_mode:
+		_flying = true
+		velocity = Vector3.ZERO
+
+
+func is_creative_mode() -> bool:
+	return _creative_mode
+
+
+func get_mine_duration(type: String) -> float:
+	return 0.0 if _creative_mode else float(BLOCK_MINE_TIME.get(type, 1.25))
+
+
+func should_spawn_mined_drop() -> bool:
+	return not _creative_mode
+
+
 func _update_arm_bob(delta: float) -> void:
 	if fp_arm == null:
 		return
@@ -609,13 +634,14 @@ func _update_mining(delta: float) -> void:
 		_mining_progress = 0.0
 		_mining_type = type
 	_mining_progress += delta
-	var required: float = BLOCK_MINE_TIME.get(type, 1.25)
+	var required: float = get_mine_duration(type)
 
 	if _mining_progress >= required:
 		var removed: String = _world.remove_block(block_pos)
 		if removed != "":
 			_sync_block_removed(block_pos)
-			_spawn_item_drop(Vector3(block_pos), removed)
+			if should_spawn_mined_drop():
+				_spawn_item_drop(Vector3(block_pos), removed)
 		_stop_mining()
 		return
 

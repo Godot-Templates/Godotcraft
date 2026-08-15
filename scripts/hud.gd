@@ -22,6 +22,11 @@ const INV_START: int = 9
 const CRAFT_START: int = 36
 const OUTPUT_INDEX: int = 40
 const TOTAL_SLOTS: int = 41
+const RUNTIME_MODE_SETTING: String = "game/runtime_mode"
+const MODE_CREATIVE: String = "creative"
+const CREATIVE_BLOCKS: Array[String] = [
+	"dirt", "grass", "cobble", "wood", "leaves", "sand",
+]
 
 signal selection_changed(slot_index: int, item_type: String)
 
@@ -59,6 +64,7 @@ var _slot_panels: Array = []     # length TOTAL_SLOTS, parallel to _slots
 var _selected_slot: int = 0
 var _held: Dictionary = {"type": "", "count": 0}  # cursor-held stack
 var _cursor_preview: Control
+var _creative_mode: bool = false
 
 
 func _enter_tree() -> void:
@@ -75,6 +81,9 @@ func _ready() -> void:
 	_build_inventory_grid()
 	_style_inventory_panel()
 	_build_cursor_preview()
+	var runtime_mode: String = String(ProjectSettings.get_setting(
+		RUNTIME_MODE_SETTING, "survival"))
+	set_creative_mode(runtime_mode == MODE_CREATIVE)
 	_update_selection()
 
 
@@ -96,6 +105,23 @@ func get_selected_type() -> String:
 
 func get_selected_count() -> int:
 	return _slots[_selected_slot].count
+
+
+func set_creative_mode(enabled: bool) -> void:
+	_creative_mode = enabled
+	if not _creative_mode or _slots.size() < TOTAL_SLOTS:
+		return
+	for i: int in HOTBAR_SIZE:
+		if i < CREATIVE_BLOCKS.size():
+			_slots[i] = {"type": CREATIVE_BLOCKS[i], "count": 1}
+		else:
+			_slots[i] = {"type": "", "count": 0}
+		_refresh_slot(i)
+	_emit_selection_changed()
+
+
+func is_creative_mode() -> bool:
+	return _creative_mode
 
 
 func add_item(type: String, count: int) -> int:
@@ -122,6 +148,8 @@ func add_item(type: String, count: int) -> int:
 
 func consume_selected(amount: int) -> bool:
 	var s: Dictionary = _slots[_selected_slot]
+	if _creative_mode:
+		return not String(s.type).is_empty()
 	if s.count < amount:
 		return false
 	s.count -= amount
@@ -526,8 +554,8 @@ func _refresh_slot(index: int) -> void:
 			icon.texture = _texture_for(item.type)
 			icon.visible = icon.texture != null
 		if badge != null:
-			badge.text = str(item.count)
-			badge.visible = item.count > 1
+			badge.text = "∞" if _creative_mode and index < HOTBAR_SIZE else str(item.count)
+			badge.visible = (_creative_mode and index < HOTBAR_SIZE) or item.count > 1
 	else:
 		if icon != null:
 			icon.visible = false
@@ -572,7 +600,10 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		var k: int = event.keycode
 		if k == KEY_E:
-			_toggle_inventory()
+			# The complete creative palette already fits in the hotbar; keeping the
+			# survival inventory closed prevents those infinite slots being moved.
+			if not _creative_mode:
+				_toggle_inventory()
 			get_viewport().set_input_as_handled()
 			return
 		if k == KEY_ESCAPE and inventory.visible:

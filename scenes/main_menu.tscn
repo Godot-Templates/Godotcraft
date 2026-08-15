@@ -138,6 +138,12 @@ placeholder_text = "Number or world name"
 alignment = 1
 max_length = 32
 
+[node name="ModeButton" type="Button" parent="UI/Center/Panel/VBox/MainButtons"]
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Game Mode: Survival"
+
 [node name="PlayButton" type="Button" parent="UI/Center/Panel/VBox/MainButtons" unique_id=523975460]
 custom_minimum_size = Vector2(0, 46)
 layout_mode = 2

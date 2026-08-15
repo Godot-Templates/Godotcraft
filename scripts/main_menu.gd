@@ -22,6 +22,9 @@ const VIEW_MAIN: String = "main"
 const VIEW_HOST: String = "host"
 const VIEW_JOIN: String = "join"
 const RUNTIME_SEED_SETTING: String = "game/runtime_world_seed"
+const RUNTIME_MODE_SETTING: String = "game/runtime_mode"
+const MODE_SURVIVAL: String = "survival"
+const MODE_CREATIVE: String = "creative"
 
 @onready var _pivot: Node3D = $CameraAnchor/Pivot
 @onready var _camera: Camera3D = $CameraAnchor/Pivot/Camera3D
@@ -29,6 +32,7 @@ const RUNTIME_SEED_SETTING: String = "game/runtime_world_seed"
 @onready var _title: Label = $UI/Center/Panel/VBox/Title
 @onready var _main_buttons: VBoxContainer = $UI/Center/Panel/VBox/MainButtons
 @onready var _seed_input: LineEdit = $UI/Center/Panel/VBox/MainButtons/SeedInput
+@onready var _mode_button: Button = $UI/Center/Panel/VBox/MainButtons/ModeButton
 @onready var _play_button: Button = $UI/Center/Panel/VBox/MainButtons/PlayButton
 @onready var _host_button: Button = $UI/Center/Panel/VBox/MainButtons/HostButton
 @onready var _join_button: Button = $UI/Center/Panel/VBox/MainButtons/JoinButton
@@ -48,6 +52,7 @@ var _time: float = 0.0
 var _multiplayer_manager: MultiplayerManager
 var _pending_multiplayer_action: String = ""
 var _selected_world_seed: int = 1337
+var _selected_game_mode: String = MODE_SURVIVAL
 
 
 func _ready() -> void:
@@ -56,6 +61,7 @@ func _ready() -> void:
 	_multiplayer_manager = get_node("/root/MpManager") as MultiplayerManager
 	_setup_title_animation()
 	for button: Button in [
+		_mode_button,
 		_play_button,
 		_host_button,
 		_join_button,
@@ -66,6 +72,7 @@ func _ready() -> void:
 		_join_cancel_button,
 	]:
 		_setup_button(button)
+	_mode_button.pressed.connect(_on_mode_pressed)
 	_play_button.pressed.connect(_on_play_pressed)
 	_host_button.pressed.connect(_on_host_pressed)
 	_join_button.pressed.connect(_on_show_join)
@@ -133,6 +140,15 @@ func _show_view(view: String) -> void:
 	_main_buttons.visible = view == VIEW_MAIN
 	_host_view.visible = view == VIEW_HOST
 	_join_view.visible = view == VIEW_JOIN
+
+
+func _on_mode_pressed() -> void:
+	_selected_game_mode = (
+		MODE_CREATIVE if _selected_game_mode == MODE_SURVIVAL else MODE_SURVIVAL
+	)
+	_mode_button.text = "Game Mode: %s" % (
+		"Creative" if _selected_game_mode == MODE_CREATIVE else "Survival"
+	)
 
 
 func _on_play_pressed() -> void:
@@ -229,7 +245,9 @@ func _on_multiplayer_cancelled() -> void:
 
 func _start_game() -> void:
 	ProjectSettings.set_setting(RUNTIME_SEED_SETTING, _selected_world_seed)
+	ProjectSettings.set_setting(RUNTIME_MODE_SETTING, _selected_game_mode)
 	for button: Button in [
+		_mode_button,
 		_play_button,
 		_host_button,
 		_join_button,

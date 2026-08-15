@@ -13,6 +13,7 @@ signal closed
 
 const PANEL_WIDTH: float = 380.0
 const BTN_HEIGHT: float = 46.0
+const MAIN_MENU_SCENE: String = "res://scenes/main_menu.tscn"
 
 const VIEW_MAIN: String = "main"
 const VIEW_CODE: String = "code"
@@ -166,6 +167,8 @@ func _show_main() -> void:
     if _multiplayer_mgr != null and _multiplayer_mgr.is_active():
         _vbox.add_child(_make_button("Leave Room", _on_leave_room))
 
+    _vbox.add_child(_make_button("Return to Main Menu", _on_return_to_main_menu))
+
 
 func _show_code(code: String) -> void:
     _view = VIEW_CODE
@@ -219,6 +222,14 @@ func _show_status(message: String) -> void:
 
 func _on_back_to_game() -> void:
     close()
+
+
+func _on_return_to_main_menu() -> void:
+    if _multiplayer_mgr != null and _multiplayer_mgr.is_active():
+        _multiplayer_mgr.leave_room()
+    _is_open = false
+    var transition: SceneTransitionManager = get_node("/root/SceneTransition") as SceneTransitionManager
+    transition.transition_to(MAIN_MENU_SCENE)
 
 
 func _on_show_main() -> void:
