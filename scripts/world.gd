@@ -855,6 +855,17 @@ func get_spawn_height() -> int:
 	return _spawn_height
 
 
+## Highest solid block's top surface at (x, z). Scans the full terrain range
+## (tallest mountains + trees down to the bottom of the dug-out depth); if the
+## column has no loaded blocks the chunk isn't streamed in yet, so fall back to
+## the generated terrain height, which is a pure function of position.
+func get_surface_y(x: int, z: int) -> int:
+	for y in range(40, -20, -1):
+		if has_block(Vector3i(x, y, z)):
+			return y + 1
+	return _column_info(x, z)[0] + 1
+
+
 # ------------------------- multiplayer sync -------------------------
 
 ## Terrain is deterministic from SEED_VAL on every peer, so snapshots carry

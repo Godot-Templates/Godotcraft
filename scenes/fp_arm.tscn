@@ -1,16 +1,16 @@
-[gd_scene load_steps=6 format=3 uid="uid://fp_arm_root_v1"]
+[gd_scene format=3 uid="uid://bn7iee0lrmc1"]
 
 [sub_resource type="StandardMaterial3D" id="mat_shirt"]
 albedo_color = Color(0.18, 0.62, 0.72, 1)
 roughness = 0.9
 
-[sub_resource type="StandardMaterial3D" id="mat_skin"]
-albedo_color = Color(0.95, 0.78, 0.6, 1)
-roughness = 0.85
-
 [sub_resource type="BoxMesh" id="mesh_sleeve"]
 material = SubResource("mat_shirt")
 size = Vector3(0.2, 0.2, 0.4)
+
+[sub_resource type="StandardMaterial3D" id="mat_skin"]
+albedo_color = Color(0.95, 0.78, 0.6, 1)
+roughness = 0.85
 
 [sub_resource type="BoxMesh" id="mesh_hand"]
 material = SubResource("mat_skin")
@@ -19,20 +19,20 @@ size = Vector3(0.2, 0.2, 0.13)
 [sub_resource type="BoxMesh" id="mesh_held_block"]
 size = Vector3(0.25, 0.25, 0.25)
 
-[node name="FPArm" type="Node3D"]
+[node name="FPArm" type="Node3D" unique_id=135676886]
 
-[node name="Sleeve" type="MeshInstance3D" parent="."]
+[node name="Sleeve" type="MeshInstance3D" parent="." unique_id=561103734]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.05)
 cast_shadow = 0
 mesh = SubResource("mesh_sleeve")
 
-[node name="Hand" type="MeshInstance3D" parent="."]
+[node name="Hand" type="MeshInstance3D" parent="." unique_id=1588706390]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.215)
 cast_shadow = 0
 mesh = SubResource("mesh_hand")
 
-[node name="HeldBlock" type="MeshInstance3D" parent="."]
+[node name="HeldBlock" type="MeshInstance3D" parent="." unique_id=19967493]
 transform = Transform3D(0.866, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866, 0, -0.05, -0.5)
-cast_shadow = 0
 visible = false
+cast_shadow = 0
 mesh = SubResource("mesh_held_block")

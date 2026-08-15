@@ -48,6 +48,7 @@ const RECIPES: Array = [
 
 var planks_texture: Texture2D = load("res://assets/generated/planks_frame_0.png")
 var crafting_table_texture: Texture2D = load("res://assets/generated/crafting_table_frame_0.png")
+var feather_texture: Texture2D = load("res://assets/generated/feather_frame_0.png")
 
 @onready var hotbar: HBoxContainer = $Hotbar
 @onready var inventory: PanelContainer = $Inventory
@@ -552,6 +553,8 @@ func _texture_for(type: String) -> Texture2D:
 			return planks_texture
 		"crafting_table":
 			return crafting_table_texture
+		"feather":
+			return feather_texture
 	return null
 
 

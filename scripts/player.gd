@@ -263,6 +263,7 @@ func _unhandled_input(event: InputEvent) -> void:
         elif event.button_index == MOUSE_BUTTON_LEFT:
             # Every left-click throws a punch; mining bob overrides it while held on a block.
             _punch_time = PUNCH_DURATION
+            _try_punch_target()
 
 
 func _physics_process(delta: float) -> void:
@@ -569,6 +570,17 @@ func _camera_ray_hit() -> Dictionary:
     if hit.position.distance_to(eye_pos) > MAX_REACH:
         return {}
     return hit
+
+
+func _try_punch_target() -> void:
+    # Punching a mob (e.g. a chicken) takes priority over mining — a click aimed
+    # at a mob standing in front of a block should hit the mob, not the block.
+    var hit: Dictionary = _camera_ray_hit()
+    if hit.is_empty():
+        return
+    var collider: Object = hit.get("collider")
+    if collider != null and collider.has_method("take_damage"):
+        collider.take_damage(1)
 
 
 func _update_mining(delta: float) -> void:
