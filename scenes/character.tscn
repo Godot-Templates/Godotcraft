@@ -1,7 +1,5 @@
 [gd_scene format=3 uid="uid://dvifdwakpmsws"]
 
-[ext_resource type="Texture2D" uid="uid://celh7y5gq8jcn" path="res://assets/generated/steve_face_2_frame_0.png" id="1_face"]
-
 [sub_resource type="StandardMaterial3D" id="mat_skin"]
 albedo_color = Color(0.95, 0.78, 0.6, 1)
 roughness = 0.85
@@ -18,14 +16,29 @@ roughness = 0.95
 material = SubResource("mat_hair")
 size = Vector3(0.42, 0.1, 0.42)
 
-[sub_resource type="StandardMaterial3D" id="mat_face"]
-albedo_texture = ExtResource("1_face")
+[sub_resource type="StandardMaterial3D" id="mat_eyes"]
+albedo_color = Color(0.055, 0.045, 0.04, 1)
 roughness = 0.9
-texture_filter = 0
 
-[sub_resource type="QuadMesh" id="mesh_face"]
-material = SubResource("mat_face")
-size = Vector2(0.4, 0.4)
+[sub_resource type="BoxMesh" id="mesh_eye"]
+material = SubResource("mat_eyes")
+size = Vector3(0.065, 0.06, 0.018)
+
+[sub_resource type="StandardMaterial3D" id="mat_brows"]
+albedo_color = Color(0.18, 0.1, 0.055, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="mesh_brow"]
+material = SubResource("mat_brows")
+size = Vector3(0.095, 0.025, 0.018)
+
+[sub_resource type="StandardMaterial3D" id="mat_mouth"]
+albedo_color = Color(0.36, 0.12, 0.1, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="mesh_mouth"]
+material = SubResource("mat_mouth")
+size = Vector3(0.13, 0.025, 0.018)
 
 [sub_resource type="StandardMaterial3D" id="mat_shirt"]
 albedo_color = Color(0.18, 0.62, 0.72, 1)
@@ -69,9 +82,28 @@ mesh = SubResource("mesh_head")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.68, 0)
 mesh = SubResource("mesh_hair")
 
-[node name="Face" type="MeshInstance3D" parent="." unique_id=440584182]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 1.48, -0.205)
-mesh = SubResource("mesh_face")
+[node name="Face" type="Node3D" parent="." unique_id=440584182]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.48, 0)
+
+[node name="LeftEye" type="MeshInstance3D" parent="Face" unique_id=1455683153]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.105, 0.035, -0.211)
+mesh = SubResource("mesh_eye")
+
+[node name="RightEye" type="MeshInstance3D" parent="Face" unique_id=996692944]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.105, 0.035, -0.211)
+mesh = SubResource("mesh_eye")
+
+[node name="LeftEyebrow" type="MeshInstance3D" parent="Face" unique_id=890905313]
+transform = Transform3D(0.996195, 0.087156, 0, -0.087156, 0.996195, 0, 0, 0, 1, -0.105, 0.105, -0.212)
+mesh = SubResource("mesh_brow")
+
+[node name="RightEyebrow" type="MeshInstance3D" parent="Face" unique_id=126635860]
+transform = Transform3D(0.996195, -0.087156, 0, 0.087156, 0.996195, 0, 0, 0, 1, 0.105, 0.105, -0.212)
+mesh = SubResource("mesh_brow")
+
+[node name="Mouth" type="MeshInstance3D" parent="Face" unique_id=1709008375]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.095, -0.212)
+mesh = SubResource("mesh_mouth")
 
 [node name="Torso" type="MeshInstance3D" parent="." unique_id=1092451359]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
