@@ -1,22 +1,31 @@
 class_name DebugPanel
 extends CanvasLayer
 
-## F3-style debug overlay (top-right). Shows FPS, player world position,
+## F3-style debug overlay (top-left). Shows FPS, player world position,
 ## facing direction, chunk info, world stats, and engine performance numbers.
-## Toggled with the ` (backtick) / ~ (tilde) key. Visible by default.
+## Toggled with the ` (backtick) / ~ (tilde) key. Collapsed by default,
+## showing only a hint line; expanding/collapsing is subtly animated.
 
 const UPDATE_INTERVAL: float = 0.15  # seconds between text refreshes
+const TOGGLE_HINT: String = "Press ` or ~ to toggle this panel"
+const ANIM_DURATION: float = 0.18
 
+@onready var _panel: PanelContainer = $Panel
 @onready var _label: Label = $Panel/Margin/Label
 
 var _player: CharacterBody3D
 var _world: World
 var _accum: float = 0.0
+var _expanded: bool = false
+var _tween: Tween
 
 
 func _ready() -> void:
 	layer = 10
 	visible = true
+	_label.text = TOGGLE_HINT
+	_panel.scale = Vector2.ONE
+	_panel.pivot_offset = Vector2.ZERO
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -24,12 +33,33 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if key == null or not key.pressed or key.echo:
 		return
 	if key.keycode == KEY_QUOTELEFT or key.keycode == KEY_ASCIITILDE:
-		visible = not visible
+		_set_expanded(not _expanded)
 		get_viewport().set_input_as_handled()
 
 
+func _set_expanded(expanded: bool) -> void:
+	_expanded = expanded
+	if _expanded:
+		_refresh()
+	else:
+		_label.text = TOGGLE_HINT
+	_animate_pop()
+
+
+func _animate_pop() -> void:
+	if _tween != null and _tween.is_valid():
+		_tween.kill()
+	_panel.pivot_offset = Vector2.ZERO
+	_panel.scale = Vector2(1.0, 0.6)
+	_panel.modulate.a = 0.35
+	_tween = create_tween().set_parallel(true)
+	_tween.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	_tween.tween_property(_panel, "scale", Vector2.ONE, ANIM_DURATION)
+	_tween.tween_property(_panel, "modulate:a", 1.0, ANIM_DURATION)
+
+
 func _process(delta: float) -> void:
-	if not visible:
+	if not _expanded:
 		return
 	_accum += delta
 	if _accum < UPDATE_INTERVAL:
