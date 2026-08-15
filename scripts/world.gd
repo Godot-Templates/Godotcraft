@@ -29,6 +29,9 @@ const INITIAL_SYNC_RADIUS: int = 1  # 3x3 generated synchronously (ground under 
 const INITIAL_STREAM_RADIUS: int = 5  # match the normal 11x11 render window
 const COLLISION_DISTANCE: int = 3  # covers animals throughout their 48 m active radius
 const GEN_BUDGET_USEC: int = 3500  # per-frame time budget for chunk work
+# Leave CPU capacity for rendering, physics, and the main thread. Dispatching the
+# entire 11x11 startup window at once saturates every worker for several seconds.
+const MAX_CONCURRENT_GEN_TASKS: int = 2
 
 const SURFACE_DEPTH: int = 24  # enough underground volume for explorable caves
 const DEFAULT_SEED: int = 1337
@@ -177,7 +180,6 @@ func _queue_initial_area() -> void:
 		return _chebyshev(a, Vector2i.ZERO) < _chebyshev(b, Vector2i.ZERO))
 	for c in wanted:
 		_queued[c] = true
-		_dispatch_gen(c)
 		_job_queue.append(_make_gen_job(c))
 
 
@@ -224,8 +226,7 @@ func _refresh_desired_chunks(pc: Vector2i) -> void:
 	for c in wanted:
 		_queued[c] = true
 		# Chunks the player is about to stand in get high-priority workers.
-		_dispatch_gen(c, _chebyshev(c, pc) <= 1)
-		_job_queue.append(_make_gen_job(c))
+		_job_queue.append(_make_gen_job(c, _chebyshev(c, pc) <= 1))
 	# Queue unloads for chunks that drifted too far.
 	for c_variant in _loaded.keys():
 		var c: Vector2i = c_variant
@@ -287,16 +288,29 @@ func _collide_step(job: Dictionary, enable: bool) -> bool:
 	return true
 
 
-func _make_gen_job(coord: Vector2i) -> Dictionary:
-	return {"kind": "gen", "coord": coord, "phase": 0, "idx": 0, "list": []}
+func _make_gen_job(
+	coord: Vector2i, high_priority: bool = false, synchronous: bool = false
+) -> Dictionary:
+	return {
+		"kind": "gen",
+		"coord": coord,
+		"phase": 0,
+		"idx": 0,
+		"list": [],
+		"high_priority": high_priority,
+		"synchronous": synchronous,
+	}
 
 
-## Kicks off the pure chunk computation on a worker thread.
-func _dispatch_gen(coord: Vector2i, high_priority: bool = false) -> void:
+## Kicks off pure chunk computation while preserving capacity for frame work.
+func _dispatch_gen(coord: Vector2i, high_priority: bool = false) -> bool:
 	if _gen_tasks.has(coord):
-		return
+		return true
+	if _gen_tasks.size() >= MAX_CONCURRENT_GEN_TASKS:
+		return false
 	_gen_tasks[coord] = WorkerThreadPool.add_task(
 		_thread_generate.bind(coord), high_priority, "chunk gen")
+	return true
 
 
 ## Worker-thread entry point. Only reads noise objects and constants.
@@ -445,8 +459,7 @@ func _run_jobs(budget_usec: int) -> void:
 					and _chebyshev(job["coord"], _last_player_chunk) <= RENDER_DISTANCE:
 				var coord: Vector2i = job["coord"]
 				_queued[coord] = true
-				_dispatch_gen(coord, true)
-				_job_queue.append(_make_gen_job(coord))
+				_job_queue.append(_make_gen_job(coord, true))
 		elif status == STEP_BLOCKED:
 			i += 1  # let jobs behind it run while the worker finishes
 		if Time.get_ticks_usec() >= _job_deadline_usec:
@@ -466,9 +479,10 @@ func _generate_chunk_sync(coord: Vector2i) -> void:
 	# recomputing); otherwise phase 0 computes it on the main thread.
 	var task_id: int = _gen_tasks.get(coord, -1)
 	if task_id != -1:
+		# Keep the completed task registered so phase 0 can retire it and consume
+		# its result instead of recomputing the same chunk synchronously.
 		WorkerThreadPool.wait_for_task_completion(task_id)
-		_gen_tasks.erase(coord)
-	var job: Dictionary = _make_gen_job(coord)
+	var job: Dictionary = _make_gen_job(coord, true, true)
 	while _job_step(job) != STEP_DONE:
 		pass
 
@@ -494,12 +508,23 @@ func _job_step(job: Dictionary) -> int:
 		return _retire_gen_task(coord, true)
 	match int(job["phase"]):
 		0:
-			# Pick up the worker thread's result (or compute here if none ran).
+			# Streaming jobs wait for a bounded worker slot instead of spilling
+			# expensive terrain generation onto the frame's main-thread budget.
+			if not _gen_tasks.has(coord):
+				if bool(job.get("synchronous", false)):
+					var sync_result: Dictionary = _compute_chunk(coord)
+					_gen_mutex.lock()
+					_gen_results[coord] = sync_result
+					_gen_mutex.unlock()
+				elif _dispatch_gen(coord, bool(job.get("high_priority", false))):
+					return STEP_BLOCKED
+				else:
+					return STEP_BLOCKED
 			if _retire_gen_task(coord, false) == STEP_BLOCKED:
 				return STEP_BLOCKED
 			var result: Dictionary = _take_gen_result(coord)
 			if result.is_empty():
-				result = _compute_chunk(coord)
+				return STEP_BLOCKED
 			_column_cache.merge(result["columns"], true)
 			job["blocks"] = result["blocks"]
 			job["list"] = (result["blocks"] as Dictionary).keys()
@@ -519,13 +544,10 @@ func _job_step(job: Dictionary) -> int:
 			var surface_data: Dictionary = _take_mesh_result(coord)
 			_apply_chunk_surface_data(coord, surface_data)
 			_loaded[coord] = true
-			# Only collision-window neighbors need immediate seam refreshes.
-			# Distant visual border faces can harmlessly overlap and disappear when
-			# either chunk is later rebuilt, avoiding four 17 ms remeshes per load.
-			for direction: Vector2i in CHUNK_NEIGHBOR_DIRS:
-				var neighbor: Vector2i = coord + direction
-				if _loaded.has(neighbor) and _collided.has(neighbor):
-					_rebuild_chunk(neighbor)
+			# Do not synchronously remesh older neighbors here. The newly loaded
+			# chunk already suppresses its own shared faces; one hidden face left in
+			# an older neighbor is harmless and disappears on its next normal rebuild.
+			# Remeshing up to four neighbors here caused 50–100 ms startup frames.
 			return STEP_DONE
 	return STEP_PROGRESS
 

@@ -107,3 +107,12 @@ func test_negative_border_edit_uses_floor_chunk_coordinates() -> void:
 	world._loaded[Vector2i.ZERO] = true
 	var rebuilds: Array[Vector2i] = world._edited_chunk_coords(Vector3i(-1, 3, 7))
 	assert(rebuilds == [Vector2i(-1, 0), Vector2i.ZERO])
+
+
+func test_generation_dispatch_keeps_worker_capacity_bounded() -> void:
+	var world: World = _world_for_seed(1337)
+	for x: int in range(12):
+		world._dispatch_gen(Vector2i(x, 0))
+	var dispatched_count: int = world._gen_tasks.size()
+	world._flush_gen_tasks()
+	assert(dispatched_count <= 2)
