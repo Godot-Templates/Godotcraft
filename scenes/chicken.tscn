@@ -1,6 +1,153 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://gf1rpn4eik10"]
 
-[ext_resource type="Script" path="res://scripts/chicken.gd" id="1_chicken"]
+[ext_resource type="Script" uid="uid://b4jxypx1ll4nd" path="res://scripts/chicken.gd" id="1_chicken"]
 
-[node name="Chicken" type="CharacterBody3D"]
+[sub_resource type="BoxShape3D" id="ChickenCollider"]
+size = Vector3(0.72, 1.12, 0.9)
+
+[sub_resource type="StandardMaterial3D" id="FeathersMaterial"]
+resource_local_to_scene = true
+resource_name = "Feathers"
+albedo_color = Color(0.94, 0.94, 0.88, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BodyMesh"]
+material = SubResource("FeathersMaterial")
+size = Vector3(0.58, 0.5, 0.72)
+
+[sub_resource type="BoxMesh" id="ChestMesh"]
+material = SubResource("FeathersMaterial")
+size = Vector3(0.48, 0.38, 0.2)
+
+[sub_resource type="BoxMesh" id="HeadMesh"]
+material = SubResource("FeathersMaterial")
+size = Vector3(0.42, 0.42, 0.42)
+
+[sub_resource type="StandardMaterial3D" id="OrangeMaterial"]
+resource_local_to_scene = true
+resource_name = "Beak and Legs"
+albedo_color = Color(0.95, 0.52, 0.08, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BeakMesh"]
+material = SubResource("OrangeMaterial")
+size = Vector3(0.22, 0.14, 0.22)
+
+[sub_resource type="StandardMaterial3D" id="RedMaterial"]
+resource_local_to_scene = true
+resource_name = "Comb"
+albedo_color = Color(0.78, 0.08, 0.06, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="CombMesh"]
+material = SubResource("RedMaterial")
+size = Vector3(0.16, 0.18, 0.24)
+
+[sub_resource type="BoxMesh" id="WattleMesh"]
+material = SubResource("RedMaterial")
+size = Vector3(0.12, 0.17, 0.1)
+
+[sub_resource type="StandardMaterial3D" id="EyeMaterial"]
+resource_local_to_scene = true
+resource_name = "Eyes"
+albedo_color = Color(0.025, 0.02, 0.015, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="EyeMesh"]
+material = SubResource("EyeMaterial")
+size = Vector3(0.07, 0.08, 0.07)
+
+[sub_resource type="StandardMaterial3D" id="WingMaterial"]
+resource_local_to_scene = true
+resource_name = "Wing Feathers"
+albedo_color = Color(0.82, 0.83, 0.78, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="WingMesh"]
+material = SubResource("WingMaterial")
+size = Vector3(0.13, 0.34, 0.48)
+
+[sub_resource type="BoxMesh" id="TailMesh"]
+material = SubResource("FeathersMaterial")
+size = Vector3(0.16, 0.42, 0.18)
+
+[sub_resource type="BoxMesh" id="LegMesh"]
+material = SubResource("OrangeMaterial")
+size = Vector3(0.09, 0.3, 0.09)
+
+[sub_resource type="BoxMesh" id="FootMesh"]
+material = SubResource("OrangeMaterial")
+size = Vector3(0.16, 0.07, 0.28)
+
+[node name="Chicken" type="CharacterBody3D" unique_id=2130313276]
 script = ExtResource("1_chicken")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1488139787]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+shape = SubResource("ChickenCollider")
+
+[node name="Model" type="Node3D" parent="." unique_id=1026343121]
+
+[node name="Body" type="MeshInstance3D" parent="Model" unique_id=1565150997]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.51, 0.05)
+mesh = SubResource("BodyMesh")
+
+[node name="Chest" type="MeshInstance3D" parent="Model" unique_id=989082418]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, -0.38)
+mesh = SubResource("ChestMesh")
+
+[node name="Head" type="MeshInstance3D" parent="Model" unique_id=1594433786]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.84, -0.32)
+mesh = SubResource("HeadMesh")
+
+[node name="Beak" type="MeshInstance3D" parent="Model" unique_id=895360631]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.78, -0.62)
+mesh = SubResource("BeakMesh")
+
+[node name="Comb" type="MeshInstance3D" parent="Model" unique_id=858777013]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.12, -0.28)
+mesh = SubResource("CombMesh")
+
+[node name="Wattle" type="MeshInstance3D" parent="Model" unique_id=1196921332]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.64, -0.56)
+mesh = SubResource("WattleMesh")
+
+[node name="LeftEye" type="MeshInstance3D" parent="Model" unique_id=696604224]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.19, 0.9, -0.5)
+mesh = SubResource("EyeMesh")
+
+[node name="RightEye" type="MeshInstance3D" parent="Model" unique_id=27900148]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.19, 0.9, -0.5)
+mesh = SubResource("EyeMesh")
+
+[node name="LeftWing" type="MeshInstance3D" parent="Model" unique_id=597373463]
+transform = Transform3D(0.99280864, 0.119712204, 0, -0.119712204, 0.99280864, 0, 0, 0, 1, -0.35, 0.54, 0.07)
+mesh = SubResource("WingMesh")
+
+[node name="RightWing" type="MeshInstance3D" parent="Model" unique_id=1741129258]
+transform = Transform3D(0.99280864, -0.119712204, 0, 0.119712204, 0.99280864, 0, 0, 0, 1, 0.35, 0.54, 0.07)
+mesh = SubResource("WingMesh")
+
+[node name="LeftTailFeather" type="MeshInstance3D" parent="Model" unique_id=389835989]
+transform = Transform3D(0.99280864, 0.119712204, 0, -0.109307885, 0.9065226, -0.40776044, -0.0488139, 0.4048281, 0.9130889, -0.14, 0.73, 0.43)
+mesh = SubResource("TailMesh")
+
+[node name="RightTailFeather" type="MeshInstance3D" parent="Model" unique_id=1292102892]
+transform = Transform3D(0.99280864, -0.119712204, 0, 0.109307885, 0.9065226, -0.40776044, 0.0488139, 0.4048281, 0.9130889, 0.14, 0.73, 0.43)
+mesh = SubResource("TailMesh")
+
+[node name="LeftLeg" type="MeshInstance3D" parent="Model" unique_id=1357405982]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.16, 0.18, 0.02)
+mesh = SubResource("LegMesh")
+
+[node name="Foot" type="MeshInstance3D" parent="Model/LeftLeg" unique_id=2084030923]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.14, -0.07)
+mesh = SubResource("FootMesh")
+
+[node name="RightLeg" type="MeshInstance3D" parent="Model" unique_id=1929147195]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.16, 0.18, 0.02)
+mesh = SubResource("LegMesh")
+
+[node name="Foot" type="MeshInstance3D" parent="Model/RightLeg" unique_id=2018370210]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.14, -0.07)
+mesh = SubResource("FootMesh")
