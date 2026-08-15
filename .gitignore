@@ -3,3 +3,4 @@
 /android/
 export_presets.cfg
 addons/ziva_agent/
+.DS_Store
