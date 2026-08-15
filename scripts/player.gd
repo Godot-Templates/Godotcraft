@@ -23,6 +23,10 @@ const ARM_SWING_RATIO: float = 0.8
 
 const CROUCH_SPEED: float = 1.8
 const SPRINT_DOUBLE_TAP_WINDOW: float = 0.3
+const FLY_SPEED: float = 10.0
+const FLY_ACCEL: float = 8.0
+const FLY_BOOST_MULT: float = 2.5  # Shift + forward while flying
+const FLY_DOUBLE_TAP_WINDOW: float = 0.3
 const STAND_PIVOT_Y: float = 1.6
 const CROUCH_PIVOT_Y: float = 1.1
 const CROUCH_LERP_RATE: float = 12.0
@@ -36,12 +40,12 @@ const CROUCH_KNEE_BEND_DEG: float = 28.0
 const CROUCH_ARM_FORWARD_DEG: float = 12.0
 
 const BLOCK_MINE_TIME: Dictionary = {
-    "dirt": 3.0,
-    "grass": 3.0,
-    "cobble": 2.5,
-    "wood": 4.5,
-    "leaves": 0.5,
-    "sand": 1.5,
+    "dirt": 0.75,
+    "grass": 0.75,
+    "cobble": 0.625,
+    "wood": 1.125,
+    "leaves": 0.125,
+    "sand": 0.375,
 }
 
 const FP_ARM_BOB_FREQ: float = 8.0
@@ -104,6 +108,9 @@ var _w_was_pressed: bool = false
 var _w_last_release_time: float = -10.0
 var _sprint_active: bool = false
 var _crouching: bool = false
+var _flying: bool = false
+var _space_was_pressed: bool = false
+var _space_last_release_time: float = -10.0
 var _crouch_pose_blend: float = 0.0
 
 var _world: Node
@@ -260,7 +267,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
     # Always apply gravity, even when input is locked (inventory open, mouse free).
-    if not is_on_floor():
+    # Fly mode ignores gravity entirely.
+    if not _flying and not is_on_floor():
         velocity.y -= ProjectSettings.get_setting("physics/3d/default_gravity", 9.8) * delta
 
     var input_locked: bool = Input.mouse_mode != Input.MOUSE_MODE_CAPTURED
@@ -268,6 +276,8 @@ func _physics_process(delta: float) -> void:
         # Damp horizontal motion to a stop while frozen (inventory/menu).
         velocity.x = move_toward(velocity.x, 0.0, GROUND_ACCEL * delta)
         velocity.z = move_toward(velocity.z, 0.0, GROUND_ACCEL * delta)
+        if _flying:
+            velocity.y = move_toward(velocity.y, 0.0, GROUND_ACCEL * delta)
         move_and_slide()
         _update_walk_animation(delta)
         _update_block_highlight()
@@ -287,6 +297,24 @@ func _physics_process(delta: float) -> void:
             _w_last_release_time = now
         _sprint_active = false
     _w_was_pressed = w_now
+
+    # --- Double-tap Space → toggle fly mode ---
+    var space_now: bool = Input.is_physical_key_pressed(KEY_SPACE)
+    if space_now and not _space_was_pressed:
+        if now - _space_last_release_time < FLY_DOUBLE_TAP_WINDOW:
+            _flying = not _flying
+            velocity = Vector3.ZERO
+    if not space_now and _space_was_pressed:
+        _space_last_release_time = now
+    _space_was_pressed = space_now
+
+    if _flying:
+        _process_fly_movement(delta, space_now)
+        _update_walk_animation(delta)
+        _update_block_highlight()
+        _update_mining(delta)
+        _update_arm_bob(delta)
+        return
 
     # --- Shift → crouch (slow, no-fall-off-edge, no jump) ---
     _crouching = Input.is_physical_key_pressed(KEY_SHIFT)
@@ -348,6 +376,55 @@ func _physics_process(delta: float) -> void:
     _update_block_highlight()
     _update_mining(delta)
     _update_arm_bob(delta)
+
+
+func _process_fly_movement(delta: float, space_now: bool) -> void:
+    _crouching = false
+    _sprint_active = false
+    _crouch_pose_blend = 0.0
+
+    # Keep the camera pivot at standing height while airborne.
+    camera_pivot.position.y = lerp(
+        camera_pivot.position.y,
+        STAND_PIVOT_Y,
+        clamp(CROUCH_LERP_RATE * delta, 0.0, 1.0)
+    )
+
+    var ix: float = 0.0
+    var iz: float = 0.0
+    if Input.is_physical_key_pressed(KEY_D):
+        ix += 1.0
+    if Input.is_physical_key_pressed(KEY_A):
+        ix -= 1.0
+    if Input.is_physical_key_pressed(KEY_S):
+        iz += 1.0
+    if Input.is_physical_key_pressed(KEY_W):
+        iz -= 1.0
+
+    # Mouse guides the flight: W/S follow the camera's full look direction
+    # (including pitch), A/D strafe horizontally.
+    var wish_dir: Vector3 = camera.global_transform.basis * Vector3(ix, 0.0, iz)
+    # Space rises. Shift boosts speed while moving forward; otherwise it
+    # descends (Minecraft-style).
+    var shift_now: bool = Input.is_physical_key_pressed(KEY_SHIFT)
+    var moving_forward: bool = iz < 0.0
+    var boosting: bool = shift_now and moving_forward
+    if space_now:
+        wish_dir += Vector3.UP
+    if shift_now and not boosting:
+        wish_dir += Vector3.DOWN
+    wish_dir = wish_dir.normalized() if wish_dir.length() > 0.001 else Vector3.ZERO
+
+    var fly_speed: float = FLY_SPEED * (FLY_BOOST_MULT if boosting else 1.0)
+    var target_velocity: Vector3 = wish_dir * fly_speed
+    velocity = velocity.lerp(target_velocity, clamp(FLY_ACCEL * delta, 0.0, 1.0))
+    move_and_slide()
+
+    # Landing on the ground while flying doesn't auto-exit — only double-tap does.
+
+
+func is_flying() -> bool:
+    return _flying
 
 
 func _update_arm_bob(delta: float) -> void:
@@ -520,7 +597,7 @@ func _update_mining(delta: float) -> void:
         _mining_progress = 0.0
         _mining_type = type
     _mining_progress += delta
-    var required: float = BLOCK_MINE_TIME.get(type, 5.0)
+    var required: float = BLOCK_MINE_TIME.get(type, 1.25)
 
     if _mining_progress >= required:
         var removed: String = _world.remove_block(block_pos)
