@@ -5,7 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://de38g8kwehcw8" path="res://assets/generated/dirt_frame_0.png" id="3_dirt"]
 [ext_resource type="Texture2D" uid="uid://kbjajdu3h6b0" path="res://assets/generated/cobblestone_frame_0.png" id="4_cobble"]
 [ext_resource type="PackedScene" path="res://scenes/crosshair.tscn" id="5_crosshair"]
-[ext_resource type="PackedScene" path="res://scenes/character.tscn" id="6_character"]
+[ext_resource type="PackedScene" uid="uid://dvifdwakpmsws" path="res://scenes/character.tscn" id="6_character"]
 [ext_resource type="PackedScene" path="res://scenes/fp_arm.tscn" id="7_fp_arm"]
 [ext_resource type="PackedScene" path="res://scenes/block_highlight.tscn" id="8_highlight"]
 [ext_resource type="PackedScene" uid="uid://dhh4xubsndg1q" path="res://scenes/hud.tscn" id="9_hud"]
@@ -13,6 +13,8 @@
 [ext_resource type="Texture2D" uid="uid://c68jqejpadxsx" path="res://assets/generated/wood_frame_0.png" id="11_wood"]
 [ext_resource type="Texture2D" uid="uid://co3fxxf1ehitk" path="res://assets/generated/leaves_frame_0.png" id="12_leaves"]
 [ext_resource type="Texture2D" uid="uid://5ybo7vdslnm1" path="res://assets/generated/sand_frame_0.png" id="13_sand"]
+[ext_resource type="Script" uid="uid://bkhsk2cy403ss" path="res://scripts/day_night_cycle.gd" id="14_daynight"]
+[ext_resource type="PackedScene" path="res://scenes/debug_panel.tscn" id="15_debug"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_top_color = Color(0.06, 0.05, 0.22, 1)
@@ -88,6 +90,11 @@ light_energy = 0.55
 shadow_enabled = true
 shadow_blur = 2.5
 
+[node name="DayNightCycle" type="Node" parent="." unique_id=1982615491]
+script = ExtResource("14_daynight")
+sun_path = NodePath("../Sun")
+environment_path = NodePath("../WorldEnvironment")
+
 [node name="World" type="Node3D" parent="." unique_id=73265253]
 script = ExtResource("1_world")
 dirt_texture = ExtResource("3_dirt")
@@ -137,6 +144,8 @@ transform = Transform3D(0.9903, 0, -0.1392, 0, 1, 0, 0.1392, 0, 0.9903, 0.32, -0
 
 [node name="BlockHighlight" parent="." unique_id=1142377643 instance=ExtResource("8_highlight")]
 visible = false
+
+[node name="DebugPanel" parent="." instance=ExtResource("15_debug")]
 
 [node name="HUD" parent="." unique_id=444951439 instance=ExtResource("9_hud")]
 dirt_texture = ExtResource("3_dirt")
