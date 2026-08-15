@@ -6,7 +6,7 @@
 [ext_resource type="Texture2D" uid="uid://kbjajdu3h6b0" path="res://assets/generated/cobblestone_frame_0.png" id="4_cobble"]
 [ext_resource type="PackedScene" path="res://scenes/crosshair.tscn" id="5_crosshair"]
 [ext_resource type="PackedScene" uid="uid://dvifdwakpmsws" path="res://scenes/character.tscn" id="6_character"]
-[ext_resource type="PackedScene" path="res://scenes/fp_arm.tscn" id="7_fp_arm"]
+[ext_resource type="PackedScene" uid="uid://bn7iee0lrmc1" path="res://scenes/fp_arm.tscn" id="7_fp_arm"]
 [ext_resource type="PackedScene" path="res://scenes/block_highlight.tscn" id="8_highlight"]
 [ext_resource type="PackedScene" uid="uid://dhh4xubsndg1q" path="res://scenes/hud.tscn" id="9_hud"]
 [ext_resource type="Texture2D" uid="uid://3bygmtfoqf6a" path="res://assets/generated/grass_top_frame_0.png" id="10_grass"]
@@ -14,9 +14,10 @@
 [ext_resource type="Texture2D" uid="uid://co3fxxf1ehitk" path="res://assets/generated/leaves_frame_0.png" id="12_leaves"]
 [ext_resource type="Texture2D" uid="uid://5ybo7vdslnm1" path="res://assets/generated/sand_frame_0.png" id="13_sand"]
 [ext_resource type="Script" uid="uid://bkhsk2cy403ss" path="res://scripts/day_night_cycle.gd" id="14_daynight"]
-[ext_resource type="PackedScene" path="res://scenes/debug_panel.tscn" id="15_debug"]
+[ext_resource type="PackedScene" uid="uid://8sm2nh8v5aa6" path="res://scenes/debug_panel.tscn" id="15_debug"]
 [ext_resource type="Script" uid="uid://cfncaqp65mrhg" path="res://scripts/weather.gd" id="16_weather"]
 [ext_resource type="Script" uid="uid://bds2t7b87nq5n" path="res://scripts/chicken_spawner.gd" id="17_chicken_spawner"]
+[ext_resource type="Script" path="res://scripts/cow_spawner.gd" id="18_cow_spawner"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_top_color = Color(0.06, 0.05, 0.22, 1)
@@ -155,6 +156,10 @@ script = ExtResource("16_weather")
 
 [node name="ChickenSpawner" type="Node3D" parent="." unique_id=1987592602]
 script = ExtResource("17_chicken_spawner")
+world_path = NodePath("../World")
+
+[node name="CowSpawner" type="Node3D" parent="."]
+script = ExtResource("18_cow_spawner")
 world_path = NodePath("../World")
 
 [node name="HUD" parent="." unique_id=444951439 instance=ExtResource("9_hud")]
