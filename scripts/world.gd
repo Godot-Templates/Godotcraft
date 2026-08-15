@@ -278,6 +278,10 @@ func _refresh_collision_window(pc: Vector2i) -> void:
 
 
 func _collide_step(job: Dictionary, enable: bool) -> bool:
+	# Collision-window changes can leave the opposite job queued behind the new
+	# one. Drop stale work before it undoes the current desired state.
+	if enable != _collided.has(job["coord"]):
+		return true
 	if job["phase"] == 0:
 		var list: Array = []
 		for pos_variant in _chunk_blocks.get(job["coord"], {}).keys():
@@ -363,7 +367,17 @@ func _run_jobs(budget_usec: int) -> void:
 		var status: int = _job_step(job)
 		if status == STEP_DONE:
 			_job_queue.remove_at(i)
-			_queued.erase(job["coord"])
+			var kind: String = String(job["kind"])
+			if kind == "gen" or kind == "unload":
+				_queued.erase(job["coord"])
+			# If an unload had already started when the player returned, rebuild
+			# the chunk without waiting for another chunk-boundary crossing.
+			if kind == "unload" and not _loaded.has(job["coord"]) \
+					and _chebyshev(job["coord"], _last_player_chunk) <= RENDER_DISTANCE:
+				var coord: Vector2i = job["coord"]
+				_queued[coord] = true
+				_dispatch_gen(coord, true)
+				_job_queue.append(_make_gen_job(coord))
 		elif status == STEP_BLOCKED:
 			i += 1  # let jobs behind it run while the worker finishes
 		if Time.get_ticks_usec() >= _job_deadline_usec:
@@ -394,6 +408,9 @@ func _generate_chunk_sync(coord: Vector2i) -> void:
 func _job_step(job: Dictionary) -> int:
 	var coord: Vector2i = job["coord"]
 	if job["kind"] == "unload":
+		# The player may have returned while this low-priority job waited.
+		if job["phase"] == 0 and _chebyshev(coord, _last_player_chunk) <= UNLOAD_DISTANCE:
+			return STEP_DONE
 		return STEP_DONE if _unload_step(job, coord) else STEP_PROGRESS
 	if job["kind"] == "collide_on":
 		return STEP_DONE if _collide_step(job, true) else STEP_PROGRESS
@@ -899,7 +916,12 @@ func apply_block_snapshot(snapshot: Array) -> void:
 		)
 		_edits[pos] = String(item.get("type", ""))
 	# Rebuild loaded chunks so the received edits take effect everywhere.
-	var coords: Array = _loaded.keys()
+	# Include chunks still being merged: they already own blocks but are not in
+	# _loaded yet, and clearing their jobs alone would leave those blocks behind.
+	var coords: Array = _chunk_blocks.keys()
+	for coord_variant in _loaded.keys():
+		if not coords.has(coord_variant):
+			coords.append(coord_variant)
 	for coord_variant in coords:
 		_unload_chunk_sync(coord_variant)
 	_flush_gen_tasks()  # stale worker results would resurrect old terrain

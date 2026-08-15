@@ -19,6 +19,8 @@ layer = 10
 script = ExtResource("1_debug")
 
 [node name="Panel" type="PanelContainer" parent="."]
+anchor_left = 0.0
+anchor_right = 0.0
 offset_left = 8.0
 offset_top = 8.0
 offset_right = 240.0
@@ -37,5 +39,5 @@ theme_override_constants/margin_bottom = 8
 [node name="Label" type="Label" parent="Panel/Margin"]
 layout_mode = 2
 mouse_filter = 2
-text = "Debug"
+text = "Press ` or ~ to toggle this panel"
 label_settings = SubResource("LabelSettings_1")
