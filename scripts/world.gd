@@ -3,13 +3,11 @@ extends Node3D
 
 ## Infinite, chunk-streamed voxel world.
 ##
-## Terrain is a pure deterministic function of (x, z) built from layered noise
-## (continentalness, erosion, ridged peaks, detail) plus temperature/moisture
-## biomes. The world is split into CHUNK_SIZE x CHUNK_SIZE column chunks that
-## stream in around the player and unload when far away. Player edits are kept
-## in a separate dictionary and re-applied when a chunk regenerates, and they
-## are the only thing synced/snapshotted in multiplayer (terrain regenerates
-## identically on every peer from SEED_VAL).
+## Terrain is a pure deterministic function of (x, y, z) and world_seed. Broad
+## noise regions form plains and stepped plateaus, masked ridged noise forms tall
+## mountain chains, and 3D noise carves caves below the surface. The world is
+## split into CHUNK_SIZE x CHUNK_SIZE column chunks that stream around the player.
+## Player edits are kept separately and re-applied when a chunk regenerates.
 ##
 ## Performance:
 ## - The expensive part of chunk generation (noise sampling for terrain and
@@ -33,11 +31,14 @@ const INITIAL_STREAM_RADIUS: int = 6  # 13x13 initial world, streamed in the bac
 const COLLISION_DISTANCE: int = 1  # only chunks this close to the player get colliders
 const GEN_BUDGET_USEC: int = 3500  # per-frame time budget for chunk work
 
-const SURFACE_DEPTH: int = 8  # blocks generated below surface
-const SEED_VAL: int = 1337
+const SURFACE_DEPTH: int = 24  # enough underground volume for explorable caves
+const DEFAULT_SEED: int = 1337
+const RUNTIME_SEED_SETTING: String = "game/runtime_world_seed"
 const SEA_LEVEL: int = 0  # surface at-or-below this is sand (beaches)
-const SNOW_LINE: int = 14  # above this, mountain tops turn to bare stone
+const SNOW_LINE: int = 18  # above this, mountain tops turn to bare stone
 const SPAWN_CLEAR_RADIUS: int = 6  # no trees this close to spawn
+const CAVE_MIN_DEPTH: int = 4  # preserve a solid roof and safe spawn surface
+const CAVE_BOTTOM_MARGIN: int = 2  # never open the generated world's underside
 
 # Biome ids (derived from temperature/moisture noise per column).
 const BIOME_PLAINS: int = 0
@@ -78,6 +79,7 @@ const GRASS_TOP_CAPACITY: int = 12000
 const POOL_GROW_STEP: int = 2000
 const OFFSCREEN: Vector3 = Vector3(0.0, -10000.0, 0.0)
 
+@export var world_seed: int = DEFAULT_SEED
 @export var dirt_texture: Texture2D
 @export var grass_top_texture: Texture2D
 @export var cobble_texture: Texture2D
@@ -142,16 +144,25 @@ var _spawn_height: int = 0
 var _n_continental: FastNoiseLite
 var _n_erosion: FastNoiseLite
 var _n_hills: FastNoiseLite
+var _n_plateau: FastNoiseLite
+var _n_plateau_mask: FastNoiseLite
 var _n_ridges: FastNoiseLite
 var _n_mountain_mask: FastNoiseLite
 var _n_detail: FastNoiseLite
 var _n_temperature: FastNoiseLite
 var _n_moisture: FastNoiseLite
+var _n_cave_tunnels: FastNoiseLite
+var _n_cave_warp: FastNoiseLite
+var _n_cave_chambers: FastNoiseLite
 
 
 func _ready() -> void:
+	add_to_group("world")
+	if ProjectSettings.has_setting(RUNTIME_SEED_SETTING):
+		world_seed = int(ProjectSettings.get_setting(RUNTIME_SEED_SETTING, DEFAULT_SEED))
 	_build_noises()
 	_build_resources()
+	print("Generating deterministic world with seed %d" % world_seed)
 	_spawn_height = _column_info(0, 0)[0]
 	# Generate a small core synchronously so the player has ground to stand on
 	# from frame one, then queue a much larger initial area that streams in
@@ -467,7 +478,10 @@ func _compute_chunk(coord: Vector2i) -> Dictionary:
 			var surface_y: int = info[0]
 			var biome: int = info[1]
 			for dy in range(0, SURFACE_DEPTH + 1):
-				blocks[Vector3i(x, surface_y - dy, z)] = _block_for_depth(biome, surface_y, dy)
+				var y: int = surface_y - dy
+				if _is_cave(x, y, z, surface_y):
+					continue
+				blocks[Vector3i(x, y, z)] = _block_for_depth(biome, surface_y, dy)
 	_place_landmarks(coord, blocks, cache)
 	# Scan the chunk plus a 2-column border so trees rooted in neighboring
 	# chunks still drop their leaves into this one.
@@ -605,7 +619,7 @@ func _evict_column_cache(coord: Vector2i) -> void:
 
 func _make_noise(seed_offset: int, freq: float, octaves: int, type: FastNoiseLite.NoiseType = FastNoiseLite.TYPE_SIMPLEX_SMOOTH) -> FastNoiseLite:
 	var n: FastNoiseLite = FastNoiseLite.new()
-	n.seed = SEED_VAL + seed_offset
+	n.seed = world_seed + seed_offset
 	n.noise_type = type
 	n.frequency = freq
 	n.fractal_octaves = octaves
@@ -615,15 +629,20 @@ func _make_noise(seed_offset: int, freq: float, octaves: int, type: FastNoiseLit
 
 
 func _build_noises() -> void:
-	_n_continental = _make_noise(0, 0.012, 3)
-	_n_erosion = _make_noise(31, 0.02, 2)
-	_n_hills = _make_noise(67, 0.06, 4)
-	_n_ridges = _make_noise(103, 0.035, 3, FastNoiseLite.TYPE_SIMPLEX)
+	_n_continental = _make_noise(0, 0.0065, 3)
+	_n_erosion = _make_noise(31, 0.014, 2)
+	_n_hills = _make_noise(67, 0.035, 3)
+	_n_plateau = _make_noise(89, 0.009, 2)
+	_n_plateau_mask = _make_noise(97, 0.006, 2)
+	_n_ridges = _make_noise(103, 0.022, 4, FastNoiseLite.TYPE_SIMPLEX)
 	_n_ridges.fractal_type = FastNoiseLite.FRACTAL_RIDGED
-	_n_mountain_mask = _make_noise(139, 0.016, 2)
-	_n_detail = _make_noise(173, 0.18, 2)
-	_n_temperature = _make_noise(211, 0.015, 2)
-	_n_moisture = _make_noise(251, 0.017, 2)
+	_n_mountain_mask = _make_noise(139, 0.008, 2)
+	_n_detail = _make_noise(173, 0.14, 2)
+	_n_temperature = _make_noise(211, 0.009, 2)
+	_n_moisture = _make_noise(251, 0.011, 2)
+	_n_cave_tunnels = _make_noise(307, 0.075, 3, FastNoiseLite.TYPE_SIMPLEX)
+	_n_cave_warp = _make_noise(349, 0.028, 2)
+	_n_cave_chambers = _make_noise(383, 0.045, 2)
 
 
 ## Returns [surface_height, biome] for a column. Pure + cached.
@@ -644,19 +663,31 @@ func _column_info_cached(x: int, z: int, cache: Dictionary) -> Array:
 	var c: float = (_n_continental.get_noise_2d(fx, fz) + 1.0) * 0.5
 	var e: float = (_n_erosion.get_noise_2d(fx, fz) + 1.0) * 0.5
 	var mmask: float = (_n_mountain_mask.get_noise_2d(fx, fz) + 1.0) * 0.5
+	var plateau_mask: float = smoothstep(
+		0.48, 0.72, (_n_plateau_mask.get_noise_2d(fx, fz) + 1.0) * 0.5)
 
-	# Base elevation from continentalness: -3 (low basins) .. +7 (high inland).
-	var h: float = lerpf(-3.0, 7.0, smoothstep(0.15, 0.85, c))
-	# Rolling hills, amplitude scaled by erosion (eroded areas are flat plains).
-	h += _n_hills.get_noise_2d(fx, fz) * lerpf(1.0, 7.0, e)
-	# Ridged mountains only where the mountain mask is strong; smoothstep keeps
-	# plains untouched and gives mountains soft foothills.
-	var mstrength: float = smoothstep(0.55, 0.85, mmask)
+	# Continental elevation supplies large lowlands and uplands. Eroded regions
+	# stay broad and calm instead of turning every noise bump into a hill.
+	var h: float = lerpf(-4.0, 8.0, smoothstep(0.12, 0.88, c))
+	h += _n_hills.get_noise_2d(fx, fz) * lerpf(1.0, 4.5, e)
+
+	# Quantize broad plateau noise into four-block shelves, then blend it into the
+	# base terrain. This creates wide walkable tops with recognizable escarpments
+	# while the mask keeps normal rolling plains elsewhere.
+	var plateau_raw: float = h + _n_plateau.get_noise_2d(fx, fz) * 11.0 + 4.0
+	var plateau_height: float = round(plateau_raw / 4.0) * 4.0
+	h = lerpf(h, plateau_height, plateau_mask * 0.9)
+
+	# Mountain chains use a much broader mask than their ridges. A minimum massif
+	# lift produces foothills and pow() sharpens only the high ridges into peaks.
+	var mstrength: float = smoothstep(0.56, 0.78, mmask)
 	if mstrength > 0.0:
-		var r: float = (_n_ridges.get_noise_2d(fx, fz) + 1.0) * 0.5
-		h += r * mstrength * 22.0
-	# Fine surface roughness, damped on flat plains.
-	h += _n_detail.get_noise_2d(fx, fz) * lerpf(0.4, 1.2, e)
+		var ridge: float = clampf((_n_ridges.get_noise_2d(fx, fz) + 1.0) * 0.5, 0.0, 1.0)
+		var peak_height: float = 8.0 + pow(ridge, 1.7) * 30.0
+		h += peak_height * mstrength * lerpf(0.72, 1.0, e)
+
+	# Fine roughness is intentionally subdued on plateau tops.
+	h += _n_detail.get_noise_2d(fx, fz) * lerpf(0.9, 0.2, plateau_mask)
 
 	var surface_y: int = int(round(h))
 
@@ -675,6 +706,24 @@ func _column_info_cached(x: int, z: int, cache: Dictionary) -> Array:
 	var info: Array = [surface_y, biome]
 	cache[key] = info
 	return info
+
+
+## Deterministic 3D cave field. Thin absolute-noise bands make connected winding
+## tunnels; a second low-frequency field varies their width and occasionally
+## opens chambers. Keeping a roof and floor avoids unsafe spawn holes and voids.
+func _is_cave(x: int, y: int, z: int, surface_y: int) -> bool:
+	var depth: int = surface_y - y
+	if depth < CAVE_MIN_DEPTH or depth > SURFACE_DEPTH - CAVE_BOTTOM_MARGIN:
+		return false
+	var fx: float = float(x)
+	var fy: float = float(y) * 0.78
+	var fz: float = float(z)
+	var warp: float = _n_cave_warp.get_noise_3d(fx, fy, fz)
+	var tunnel: float = absf(_n_cave_tunnels.get_noise_3d(
+		fx + warp * 11.0, fy, fz - warp * 11.0))
+	var width: float = lerpf(0.065, 0.13, smoothstep(-0.45, 0.55, warp))
+	var chamber: float = _n_cave_chambers.get_noise_3d(fx, fy, fz)
+	return tunnel < width or chamber > 0.68
 
 
 func _block_for_depth(biome: int, surface_y: int, dy: int) -> String:
@@ -698,7 +747,7 @@ func _tree_at(x: int, z: int, cache: Dictionary) -> bool:
 	if absi(x) <= SPAWN_CLEAR_RADIUS and absi(z) <= SPAWN_CLEAR_RADIUS:
 		return false
 	var cell: Vector2i = Vector2i(x >> 2, z >> 2)
-	var h: int = absi(hash(Vector3i(cell.x, cell.y, SEED_VAL)))
+	var h: int = absi(hash(Vector3i(cell.x, cell.y, world_seed)))
 	var jx: int = cell.x * TREE_CELL + ((h >> 8) % TREE_CELL)
 	var jz: int = cell.y * TREE_CELL + ((h >> 16) % TREE_CELL)
 	if x != jx or z != jz:
@@ -712,7 +761,7 @@ func _tree_at(x: int, z: int, cache: Dictionary) -> bool:
 ## Pure list of [Vector3i, type] pairs for a tree rooted at (x, surface_y, z).
 func _tree_blocks(x: int, z: int, surface_y: int) -> Array:
 	var out: Array = []
-	var trunk_h: int = 4 + (absi(hash(Vector2i(x, z))) % 3)  # 4-6 blocks tall
+	var trunk_h: int = 4 + (absi(hash(Vector3i(x, z, world_seed))) % 3)  # 4-6 blocks tall
 	for dh in range(1, trunk_h + 1):
 		out.append([Vector3i(x, surface_y + dh, z), TYPE_WOOD])
 	var top_y: int = surface_y + trunk_h
@@ -872,12 +921,16 @@ func get_spawn_height() -> int:
 	return _spawn_height
 
 
+func get_world_seed() -> int:
+	return world_seed
+
+
 ## Highest solid block's top surface at (x, z). Scans the full terrain range
 ## (tallest mountains + trees down to the bottom of the dug-out depth); if the
 ## column has no loaded blocks the chunk isn't streamed in yet, so fall back to
 ## the generated terrain height, which is a pure function of position.
 func get_surface_y(x: int, z: int) -> int:
-	for y in range(40, -20, -1):
+	for y in range(64, -48, -1):
 		if has_block(Vector3i(x, y, z)):
 			return y + 1
 	return _column_info(x, z)[0] + 1
@@ -885,8 +938,9 @@ func get_surface_y(x: int, z: int) -> int:
 
 # ------------------------- multiplayer sync -------------------------
 
-## Terrain is deterministic from SEED_VAL on every peer, so snapshots carry
-## only player edits (type "" = removed block).
+## Terrain is deterministic from world_seed on every peer, so snapshots carry
+## only player edits (type "" = removed block). Multiplayer sessions derive the
+## same seed from their shared room code before this scene loads.
 func get_block_snapshot() -> Array[Dictionary]:
 	var snapshot: Array[Dictionary] = []
 	snapshot.resize(_edits.size())

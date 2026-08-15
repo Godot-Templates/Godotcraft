@@ -21,12 +21,14 @@ const TITLE_ANIMATION_SPEED: float = 1.2
 const VIEW_MAIN: String = "main"
 const VIEW_HOST: String = "host"
 const VIEW_JOIN: String = "join"
+const RUNTIME_SEED_SETTING: String = "game/runtime_world_seed"
 
 @onready var _pivot: Node3D = $CameraAnchor/Pivot
 @onready var _camera: Camera3D = $CameraAnchor/Pivot/Camera3D
 @onready var _anchor: Node3D = $CameraAnchor
 @onready var _title: Label = $UI/Center/Panel/VBox/Title
 @onready var _main_buttons: VBoxContainer = $UI/Center/Panel/VBox/MainButtons
+@onready var _seed_input: LineEdit = $UI/Center/Panel/VBox/MainButtons/SeedInput
 @onready var _play_button: Button = $UI/Center/Panel/VBox/MainButtons/PlayButton
 @onready var _host_button: Button = $UI/Center/Panel/VBox/MainButtons/HostButton
 @onready var _join_button: Button = $UI/Center/Panel/VBox/MainButtons/JoinButton
@@ -45,6 +47,7 @@ const VIEW_JOIN: String = "join"
 var _time: float = 0.0
 var _multiplayer_manager: MultiplayerManager
 var _pending_multiplayer_action: String = ""
+var _selected_world_seed: int = 1337
 
 
 func _ready() -> void:
@@ -136,6 +139,7 @@ func _on_play_pressed() -> void:
 	if _multiplayer_manager.is_active():
 		_multiplayer_manager.leave_room()
 	_pending_multiplayer_action = ""
+	_selected_world_seed = _seed_from_text(_seed_input.text)
 	_start_game()
 
 
@@ -189,6 +193,8 @@ func _on_code_submitted(text: String) -> void:
 func _on_room_created(code: String) -> void:
 	if _pending_multiplayer_action != "host":
 		return
+	# Every peer can derive this without an extra network message.
+	_selected_world_seed = _seed_from_text("room:" + code)
 	_room_code_label.text = code
 	_host_status.text = "Room ready"
 	_host_start_button.disabled = false
@@ -197,6 +203,7 @@ func _on_room_created(code: String) -> void:
 func _on_room_joined(code: String) -> void:
 	if _pending_multiplayer_action != "join":
 		return
+	_selected_world_seed = _seed_from_text("room:" + code)
 	_pending_multiplayer_action = ""
 	_join_status.text = "Joined room %s" % code
 	_start_game()
@@ -221,6 +228,7 @@ func _on_multiplayer_cancelled() -> void:
 
 
 func _start_game() -> void:
+	ProjectSettings.set_setting(RUNTIME_SEED_SETTING, _selected_world_seed)
 	for button: Button in [
 		_play_button,
 		_host_button,
@@ -234,6 +242,19 @@ func _start_game() -> void:
 		button.disabled = true
 	var transition: SceneTransitionManager = get_node("/root/SceneTransition") as SceneTransitionManager
 	transition.transition_to(MAIN_SCENE)
+
+
+## Numeric seeds are used directly; words are stable hashed seeds. Leaving the
+## field blank creates a fresh seed and the debug panel shows it for later reuse.
+func _seed_from_text(text: String) -> int:
+	var cleaned: String = text.strip_edges()
+	if cleaned.is_empty():
+		var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+		rng.randomize()
+		return rng.randi_range(1, 2147483646)
+	if cleaned.is_valid_int():
+		return clampi(int(cleaned), -2147483647, 2147483646)
+	return cleaned.hash()
 
 
 func _on_quit_pressed() -> void:

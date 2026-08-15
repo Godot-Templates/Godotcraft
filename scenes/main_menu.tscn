@@ -123,6 +123,21 @@ layout_mode = 2
 layout_mode = 2
 theme_override_constants/separation = 12
 
+[node name="SeedLabel" type="Label" parent="UI/Center/Panel/VBox/MainButtons"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.76, 0.76, 0.82, 1)
+theme_override_font_sizes/font_size = 13
+text = "World seed (blank = random)"
+horizontal_alignment = 1
+
+[node name="SeedInput" type="LineEdit" parent="UI/Center/Panel/VBox/MainButtons"]
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+placeholder_text = "Number or world name"
+alignment = 1
+max_length = 32
+
 [node name="PlayButton" type="Button" parent="UI/Center/Panel/VBox/MainButtons" unique_id=523975460]
 custom_minimum_size = Vector2(0, 46)
 layout_mode = 2

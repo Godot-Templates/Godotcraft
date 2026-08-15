@@ -98,6 +98,7 @@ func _refresh() -> void:
 
 	if _world != null:
 		lines.append("")
+		lines.append("World seed: %d" % _world.get_world_seed())
 		lines.append("Chunks loaded: %d  (queued: %d)" % [
 			_world._loaded.size(), _world._job_queue.size(),
 		])
