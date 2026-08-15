@@ -40,6 +40,12 @@ const SPAWN_CLEAR_RADIUS: int = 6  # no trees this close to spawn
 const CAVE_MIN_DEPTH: int = 4  # preserve a solid roof and safe spawn surface
 const CAVE_BOTTOM_MARGIN: int = 2  # never open the generated world's underside
 
+# A midpoint of 0.567 (down from 0.60) expands plateau regions by roughly 25%
+# across representative seeds while preserving rolling plains and mountains.
+const PLATEAU_MASK_LOW: float = 0.447
+const PLATEAU_MASK_HIGH: float = 0.687
+const PLATEAU_BLEND_STRENGTH: float = 0.95
+
 # Biome ids (derived from temperature/moisture noise per column).
 const BIOME_PLAINS: int = 0
 const BIOME_FOREST: int = 1
@@ -664,7 +670,8 @@ func _column_info_cached(x: int, z: int, cache: Dictionary) -> Array:
 	var e: float = (_n_erosion.get_noise_2d(fx, fz) + 1.0) * 0.5
 	var mmask: float = (_n_mountain_mask.get_noise_2d(fx, fz) + 1.0) * 0.5
 	var plateau_mask: float = smoothstep(
-		0.48, 0.72, (_n_plateau_mask.get_noise_2d(fx, fz) + 1.0) * 0.5)
+		PLATEAU_MASK_LOW, PLATEAU_MASK_HIGH,
+		(_n_plateau_mask.get_noise_2d(fx, fz) + 1.0) * 0.5)
 
 	# Continental elevation supplies large lowlands and uplands. Eroded regions
 	# stay broad and calm instead of turning every noise bump into a hill.
@@ -676,7 +683,7 @@ func _column_info_cached(x: int, z: int, cache: Dictionary) -> Array:
 	# while the mask keeps normal rolling plains elsewhere.
 	var plateau_raw: float = h + _n_plateau.get_noise_2d(fx, fz) * 11.0 + 4.0
 	var plateau_height: float = round(plateau_raw / 4.0) * 4.0
-	h = lerpf(h, plateau_height, plateau_mask * 0.9)
+	h = lerpf(h, plateau_height, plateau_mask * PLATEAU_BLEND_STRENGTH)
 
 	# Mountain chains use a much broader mask than their ridges. A minimum massif
 	# lift produces foothills and pow() sharpens only the high ridges into peaks.
