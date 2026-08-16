@@ -19,6 +19,7 @@ const TITLE_SWAY_DEGREES: float = 1.5
 const TITLE_PULSE_AMOUNT: float = 0.025
 const TITLE_ANIMATION_SPEED: float = 1.2
 const VIEW_MAIN: String = "main"
+const VIEW_MULTIPLAYER: String = "multiplayer"
 const VIEW_HOST: String = "host"
 const VIEW_JOIN: String = "join"
 const RUNTIME_SEED_SETTING: String = "game/runtime_world_seed"
@@ -34,9 +35,12 @@ const MODE_CREATIVE: String = "creative"
 @onready var _seed_input: LineEdit = $UI/Center/Panel/VBox/MainButtons/SeedInput
 @onready var _mode_button: Button = $UI/Center/Panel/VBox/MainButtons/ModeButton
 @onready var _play_button: Button = $UI/Center/Panel/VBox/MainButtons/PlayButton
-@onready var _host_button: Button = $UI/Center/Panel/VBox/MainButtons/HostButton
-@onready var _join_button: Button = $UI/Center/Panel/VBox/MainButtons/JoinButton
+@onready var _multiplayer_button: Button = $UI/Center/Panel/VBox/MainButtons/MultiplayerButton
 @onready var _quit_button: Button = $UI/Center/Panel/VBox/MainButtons/QuitButton
+@onready var _multiplayer_view: VBoxContainer = $UI/Center/Panel/VBox/MultiplayerView
+@onready var _host_button: Button = $UI/Center/Panel/VBox/MultiplayerView/HostButton
+@onready var _join_button: Button = $UI/Center/Panel/VBox/MultiplayerView/JoinButton
+@onready var _multiplayer_back_button: Button = $UI/Center/Panel/VBox/MultiplayerView/BackButton
 @onready var _host_view: VBoxContainer = $UI/Center/Panel/VBox/HostView
 @onready var _host_status: Label = $UI/Center/Panel/VBox/HostView/StatusLabel
 @onready var _room_code_label: Label = $UI/Center/Panel/VBox/HostView/RoomCodeLabel
@@ -63,9 +67,11 @@ func _ready() -> void:
 	for button: Button in [
 		_mode_button,
 		_play_button,
+		_multiplayer_button,
+		_quit_button,
 		_host_button,
 		_join_button,
-		_quit_button,
+		_multiplayer_back_button,
 		_host_start_button,
 		_host_cancel_button,
 		_connect_button,
@@ -74,8 +80,10 @@ func _ready() -> void:
 		_setup_button(button)
 	_mode_button.pressed.connect(_on_mode_pressed)
 	_play_button.pressed.connect(_on_play_pressed)
+	_multiplayer_button.pressed.connect(_on_show_multiplayer)
 	_host_button.pressed.connect(_on_host_pressed)
 	_join_button.pressed.connect(_on_show_join)
+	_multiplayer_back_button.pressed.connect(_on_multiplayer_back_pressed)
 	_quit_button.pressed.connect(_on_quit_pressed)
 	_host_start_button.pressed.connect(_start_game)
 	_host_cancel_button.pressed.connect(_on_multiplayer_cancelled)
@@ -138,8 +146,17 @@ func _scale_button(button: Button, target: Vector2, duration: float = 0.18) -> v
 
 func _show_view(view: String) -> void:
 	_main_buttons.visible = view == VIEW_MAIN
+	_multiplayer_view.visible = view == VIEW_MULTIPLAYER
 	_host_view.visible = view == VIEW_HOST
 	_join_view.visible = view == VIEW_JOIN
+
+
+func _on_show_multiplayer() -> void:
+	_show_view(VIEW_MULTIPLAYER)
+
+
+func _on_multiplayer_back_pressed() -> void:
+	_show_view(VIEW_MAIN)
 
 
 func _on_mode_pressed() -> void:
@@ -240,7 +257,7 @@ func _on_multiplayer_cancelled() -> void:
 	if _multiplayer_manager.is_active():
 		_multiplayer_manager.leave_room()
 	_pending_multiplayer_action = ""
-	_show_view(VIEW_MAIN)
+	_show_view(VIEW_MULTIPLAYER)
 
 
 func _start_game() -> void:
@@ -249,9 +266,11 @@ func _start_game() -> void:
 	for button: Button in [
 		_mode_button,
 		_play_button,
+		_multiplayer_button,
+		_quit_button,
 		_host_button,
 		_join_button,
-		_quit_button,
+		_multiplayer_back_button,
 		_host_start_button,
 		_host_cancel_button,
 		_connect_button,

@@ -228,6 +228,10 @@ func _on_return_to_main_menu() -> void:
     if _multiplayer_mgr != null and _multiplayer_mgr.is_active():
         _multiplayer_mgr.leave_room()
     _is_open = false
+    visible = false
+    _pending_action = ""
+    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+    closed.emit()
     var transition: SceneTransitionManager = get_node("/root/SceneTransition") as SceneTransitionManager
     transition.transition_to(MAIN_MENU_SCENE)
 

@@ -45,7 +45,7 @@ subpixel_positioning = 0
 
 [sub_resource type="LabelSettings" id="TitleSettings_1"]
 font = SubResource("TitleFont_1")
-font_size = 64
+font_size = 112
 outline_size = 6
 outline_color = Color(0.06, 0.06, 0.06, 0.9)
 shadow_size = 3
@@ -150,23 +150,47 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "Play Single Player"
 
-[node name="HostButton" type="Button" parent="UI/Center/Panel/VBox/MainButtons" unique_id=970360008]
+[node name="MultiplayerButton" type="Button" parent="UI/Center/Panel/VBox/MainButtons" unique_id=970360008]
 custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-text = "Host Multiplayer"
-
-[node name="JoinButton" type="Button" parent="UI/Center/Panel/VBox/MainButtons" unique_id=1099697957]
-custom_minimum_size = Vector2(0, 46)
-layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "Join Multiplayer"
+text = "Multiplayer"
 
 [node name="QuitButton" type="Button" parent="UI/Center/Panel/VBox/MainButtons" unique_id=489984728]
 custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "Quit"
+
+[node name="MultiplayerView" type="VBoxContainer" parent="UI/Center/Panel/VBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ViewTitle" type="Label" parent="UI/Center/Panel/VBox/MultiplayerView"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 24
+text = "Multiplayer"
+horizontal_alignment = 1
+
+[node name="HostButton" type="Button" parent="UI/Center/Panel/VBox/MultiplayerView"]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Host Game"
+
+[node name="JoinButton" type="Button" parent="UI/Center/Panel/VBox/MultiplayerView"]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Join Game"
+
+[node name="BackButton" type="Button" parent="UI/Center/Panel/VBox/MultiplayerView"]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Back"
 
 [node name="HostView" type="VBoxContainer" parent="UI/Center/Panel/VBox" unique_id=1126489264]
 visible = false
